@@ -1,0 +1,22 @@
+body {
+	margin: 0px;
+	padding: 0px;
+
+	overflow: hidden;
+}
+#mainOverlay {
+	background: #E3E3E3;
+	border: 1px solid #AAAAAA;
+
+	padding: 10px 30px;
+
+	position: absolute;
+	bottom: 30px;
+	width: 70%;
+	left: 15%;
+
+	-ms-filter: "progid:DXImageTransform.Microsoft.Alpha(Opacity=80)";
+	filter: alpha(opacity=80); 
+	-khtml-opacity: 0.8;
+	opacity: 0.8; 
+}
