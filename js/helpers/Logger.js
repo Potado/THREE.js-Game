@@ -9,10 +9,6 @@ var Logger = function () {
 	this.domElement.style.textAlign = 'left';
 	this.domElement.style.fontSize = '10px';
 	this.domElement.style.padding = '2px 0px 3px 0px';
-	this.domElement.style.maxHeight = '500px';
-	this.domElement.style.overflow = 'auto';
-	this.domElement.style.position = 'absolute';
-	this.domElement.style.top = '0px';
 
 	this.log = function ( msg, expand ) {
 
