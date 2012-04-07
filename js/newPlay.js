@@ -3,7 +3,7 @@
     var utils = new function() {
         this.logger = new Logger();
         this.stats = new Stats();
-        this.loader = new THREE.JSONLoader(true);
+        this.loader = new THREE.JSONLoader();
 
         this.stats.getDomElement().style.position = 'absolute';
         this.stats.getDomElement().style.right = '0px';
@@ -12,15 +12,17 @@
 
         $('body')
             .append(this.logger.domElement)
-            .append(this.stats.getDomElement())
-            .append(this.loader.statusDomElement);
+            .append(this.stats.getDomElement());
     };
 
     var settings = new function() {
         this.scrollSen = 30;
+
         this.rotSenX = 0.008;
         this.rotSenY = 0.006;
-        this.moveSen = 1200;
+
+        this.dragSen = 0.6;
+        this.arrowsSen = 0.03;
     }
 
     // Scene
@@ -43,15 +45,25 @@
         sample.add(ambientLight);
 
         // Load models
-        utils.loader.load('Models/Dragon/Medium.js', function(low) {
-            var temp = new THREE.Mesh(low, new THREE.MeshLambertMaterial());
+        utils.loader.load('Models/Dragon/Medium.js', function(geo) {
+            var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
             temp.name = 'dragon'
             temp.position.x = 0;
-            temp.position.y = -50;
+            temp.position.y = -20;
             temp.position.z = 0;
 
             sample.add(temp);
         });
+        utils.loader.load('Models/Grid.js', function(geo) {
+            var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+            temp.name = 'grid'
+            temp.position.x = 0;
+            temp.position.y = -20;
+            temp.position.z = 0;
+
+            sample.add(temp);
+        });
+
 
         this.sample = sample;
     };
@@ -94,6 +106,7 @@
         window.mouseDown = false;
         window.lastMouseX = false;
         window.lastMouseY = false;
+        window.keysPressed = new Object();
 
         document.onmousedown = function(e) {
             window.mouseDown = true;
@@ -112,18 +125,14 @@
                 // Move screen
                 if(e.altKey && e.shiftKey) {
 
-                    var lastX = (window.lastMouseX / window.innerWidth) * 2 - 1,
-                        lastY = (window.lastMouseY / window.innerHeight) * 2 - 1;
+                    var x = ((e.clientX / window.innerWidth) * 2 - 1) - ((window.lastMouseX / window.innerWidth) * 2 - 1),
+                        y =  ((e.clientY / window.innerHeight) * 2 - 1) - ((window.lastMouseY / window.innerHeight) * 2 - 1);
 
-                    var x = (e.clientX / window.innerWidth) * 2 - 1,
-                        y = (e.clientY / window.innerHeight) * 2 - 1;
+                    var up = new THREE.Vector3(Math.cos(three.camera.view.y - Math.PI / 2), 0, -Math.sin(three.camera.view.y - Math.PI / 2)),
+                        left = new THREE.Vector3(Math.cos(three.camera.view.y), 0, -Math.sin(three.camera.view.y));
 
-                    var last = three.projector.unprojectVector(new THREE.Vector3(lastX, -lastY, 0), three.camera),
-                        now = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0), three.camera);
-
-                    var difference = now.subSelf(last).multiplyScalar(settings.moveSen);
-
-                    three.camera.pivot.subSelf(difference);
+                    three.camera.pivot.subSelf(up.multiplyScalar(y * settings.dragSen * three.camera.distance));
+                    three.camera.pivot.subSelf(left.multiplyScalar(x * settings.dragSen * three.camera.distance * three.camera.aspect));
 
                 // Rotate Screen
                 } else if(e.altKey) {
@@ -155,9 +164,18 @@
                 } else {
                     three.camera.distance += settings.scrollSen;
                 }
+                if(three.camera.distance < 200) { three.camera.distance = 200; }
+                if(three.camera.distance > 500) { three.camera.distance = 500; }
             }
             document.addEventListener('DOMMouseScroll', moveObject, false);
             document.onmousewheel = moveObject;
+        }
+
+        document.onkeydown = function(e) {
+            window.keysPressed[String.fromCharCode(e.charCode ? e.charCode : e.keyCode)] = true;
+        }
+        document.onkeyup = function(e) {
+            window.keysPressed[String.fromCharCode(e.charCode ? e.charCode : e.keyCode)] = false;
         }
     })();
 
@@ -174,12 +192,47 @@
                 }
             }
 
-            // Update camera rotation
-            three.camera.position.x = three.camera.pivot.x + (Math.sin(three.camera.view.y) * three.camera.distance);
-            three.camera.position.y = three.camera.pivot.y + (Math.sin(three.camera.view.z) * three.camera.distance);
-            three.camera.position.z = three.camera.pivot.z + (Math.cos(three.camera.view.y) * three.camera.distance);
+            // Update camera position
+            (function() {
+                if(window.keysPressed.W) {
+                three.camera.pivot.subSelf(new THREE.Vector3(
+                    Math.cos(three.camera.view.y - Math.PI / 2),
+                    0,
+                    -Math.sin(three.camera.view.y - Math.PI / 2)
+                ).multiplyScalar(settings.arrowsSen * three.camera.distance));
+                }
+                if(window.keysPressed.S) {
+                    three.camera.pivot.subSelf(new THREE.Vector3(
+                        Math.cos(three.camera.view.y + Math.PI / 2),
+                        0,
+                        -Math.sin(three.camera.view.y + Math.PI / 2)
+                    ).multiplyScalar(settings.arrowsSen * three.camera.distance));
+                }
+                if(window.keysPressed.A) {
+                    three.camera.pivot.subSelf(new THREE.Vector3(
+                        Math.cos(three.camera.view.y),
+                        0,
+                        -Math.sin(three.camera.view.y)
+                    ).multiplyScalar(settings.arrowsSen * three.camera.distance));
+                }
+                if(window.keysPressed.D) {
+                    three.camera.pivot.subSelf(new THREE.Vector3(
+                        Math.cos(three.camera.view.y + Math.PI),
+                        0,
+                        -Math.sin(three.camera.view.y + Math.PI)
+                    ).multiplyScalar(settings.arrowsSen * three.camera.distance));
+                }
+            })();
+            
 
-            three.camera.lookAt(three.camera.pivot);
+            // Update camera rotation
+            (function() {
+                three.camera.position.x = three.camera.pivot.x + (Math.sin(three.camera.view.y) * three.camera.distance);
+                three.camera.position.y = three.camera.pivot.y + (Math.sin(three.camera.view.z) * three.camera.distance);
+                three.camera.position.z = three.camera.pivot.z + (Math.cos(three.camera.view.y) * three.camera.distance);
+
+                three.camera.lookAt(three.camera.pivot);
+            })();      
 
             utils.stats.update();
             three.renderer.render(scene.sample, three.camera);
