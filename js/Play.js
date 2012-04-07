@@ -1,230 +1,417 @@
-// Wrapper function (duh)
 ;(function() {
+	// Utilities
+	var utils = new function() {
+		this.logger = new Logger();
+		this.stats = new Stats();
+		this.loader = new THREE.JSONLoader();
 
-	var width = window.innerWidth, height = window.innerHeight;
-	var logger = new Logger();
-	var container = $('#container');
-	var selected = [];
+		this.stats.getDomElement().style.position = 'absolute';
+		this.stats.getDomElement().style.right = '0px';
+		this.stats.getDomElement().style.bottom = '0px';
 
-	$('body').append(logger.domElement); 
 
-	// Selections
-	(function() {
-		THREE.Object3D.prototype.selectable = false;
-		THREE.Object3D.prototype.selected = false;
-		THREE.Object3D.prototype.startSelect = function() {};
-		THREE.Object3D.prototype.stopSelect = function() {};
+		$('body')
+			.append(this.logger.domElement)
+			.append(this.stats.getDomElement());
+	};
 
-		THREE.Ray.prototype.intersectSelectable = function(object) {
-			if(object.selectable) {
-				return this.intersectObject(object);
+	// Settings
+	var settings = new function() {
+		this.scrollSen = 30;
+
+		this.rotSenX = 0.008;
+		this.rotSenY = 0.006;
+
+		this.dragSen = 0.6;
+		this.arrowsSen = 0.03;
+
+		this.clickThreshold = 5;
+	};
+
+	// Scene
+	var scene = new function() {
+		var sample = new THREE.Scene();
+
+		var pointLight = new THREE.PointLight(0xFFFFFF);
+		pointLight.intensity = 1;
+		pointLight.position.x = 0;
+		pointLight.position.y = 200;
+		pointLight.position.z = 100;
+
+		var ambientLight = new THREE.PointLight(0xFFFFFF);
+		ambientLight.intensity = 0.0;
+		ambientLight.position.x = -300;
+		ambientLight.position.y = -200;
+		ambientLight.position.z = -200;
+
+		sample.add(pointLight);
+		sample.add(ambientLight);
+
+		// Load models
+		utils.loader.load('Models/Unit/simpleMesh.js', function(geo) {
+			var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
+			temp.material.color.setHex(0xFFFFFF);
+			temp.name = 'unit';
+
+			temp.position.x = 0;
+			temp.position.y = 0;
+			temp.position.z = 0;
+
+			temp.selectable = true;
+			temp.onselect = function() {
+				this.material.color.setHex(0x22DD22)
 			}
-		}
-
-		// Taken from Three.js source
-		// Swrapped this.intersectObject to this.intersectSelectable
-		THREE.Ray.prototype.intersectSelectables = function(objects) {
-			var i, l, object,
-			intersects = [];
-
-			for (i = 0, l = objects.length; i < l; i ++) {
-				Array.prototype.push.apply(intersects, this.intersectSelectable(objects[i]));
+			temp.offselect = function() {
+				this.material.color.setHex(0xFFFFFF);
 			}
 
-			intersects.sort(function (a, b) { return a.distance - b.distance; });
+			temp.floatCounter = 0;
+			sample.add(temp);
+		});
+		utils.loader.load('Models/Unit/selection.js', function(geo) {
 
-			return intersects;
-		}
-	})();
+			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			temp.name = 'selection';
 
-	// Multi-detail and selection meshes
-	(function() {
-		THREE.Mesh.prototype.high = '';
-		THREE.Mesh.prototype.medium = '';
-		THREE.Mesh.prototype.low = '';
+			temp.position.x = 0;
+			temp.position.y = -20;
+			temp.position.z = 0;
 
-		THREE.Mesh.prototype.detail = 'high';
+			sample.add(temp);
+		});
+		utils.loader.load('Models/Grid.js', function(geo) {
+			var temp = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
+			temp.material.color.setHex(0xE3E3E3);
 
-		// THREE.Object3D.prototype.changeDetail = function(detail) {
-		// 	this.geometry = this['detail'];
-		// };
-	})();
+			temp.name = 'grid'
+			temp.position.x = 0;
+			temp.position.y = -20;
+			temp.position.z = 0;
 
-	// THREE.js
-	// Standard WebGL rendering stuff
-	var renderer, projector, camera, scene, loader;
-	(function() {
-		renderer = new THREE.WebGLRenderer();
-		projector = new THREE.Projector();
-		camera = new THREE.PerspectiveCamera(
+			sample.add(temp);
+		});
+
+
+		this.sample = sample;
+	};
+
+	// THREE.js Setup
+	var three = new function() {
+		var renderer = new THREE.WebGLRenderer();
+		var projector = new THREE.Projector();
+		var camera = new THREE.PerspectiveCamera(
 			45,
-			width / height,
+			innerWidth / innerHeight,
 			0.1,
 			100000
 		);
 
-		scene = new THREE.Scene();
+		// The location of the point that the camera rotates around
+		camera.pivot = new THREE.Vector3(0, 0, 0);
 
-		renderer.setSize(width, height);
-		container.append(renderer.domElement);
+		camera.distance = 250;
 
-		framerate = 1000 / 60;
-		frameTime = new Date().getTime();
+		// The rotation of the camera around the pivot (rads)
+		camera.view = new THREE.Vector3(0, 0, 0);
 
-		loader = new THREE.JSONLoader();
-	})();
+		renderer.setSize(innerWidth, innerHeight);
+		$('#container').append(renderer.domElement);
 
-	container.click(function(eventObj) {
-		for(var index = 0; index < selected.length; index++) {
-			selected[index].stopSelect();
-			selected[index].selected = true;
-		};
-		selected = [];
-		
+		scene.sample.add(camera);
 
-	    var x = (eventObj.clientX / renderer.domElement.width) * 2 - 1;
-	    var y = (eventObj.clientY / renderer.domElement.height) * 2 - 1;
+		onresize = function() {
+			renderer.setSize(innerWidth, innerHeight);
 
-	    var vector = new THREE.Vector3(x, y, 0.5);
-	    var mouse3d = projector.unprojectVector(vector, camera);
+			camera.aspect = innerWidth / innerHeight;
+			camera.updateProjectionMatrix();
+		}
 
-	    var ray = new THREE.Ray( camera.position, mouse3d.subSelf( camera.position ).normalize() );
+		this.renderer = renderer;
+		this.projector = projector;
+		this.camera = camera;
+	};
 
-	    var intersect = ray.intersectSelectables(scene.__objects);
+	// Selected units/buildings
+	var selection = new function() {
+		this.list = [];
 
-	    if(intersect.length > 0) {
-	    	intersect[0].object.startSelect();
-	    	intersect[0].object.selected = true;
-	    	selected.push(intersect[0].object);
-	    }
-
-	    logger.log(intersect.length);
-	    // logger.log(scene.__objects);
-
-	    // if(intersect.length > 0) {
-	    // 	logger.log(intersect[0]);
-	    // 	intersect[0].object.material.color.setHex(0x333333);
-	    // }
-
-	    // logger.log([x, y]);
-	});
-
-	// Camera controls
-	(function() {
-	})();
-
-	// Enables performance monitoring
-	var stats;
-	(function() {
-		//////////////////////////////////////////
-		// Performance Monitor
-
-		stats = new Stats();
-
-		//Top left of parent element
-		stats.getDomElement().style.position = 'absolute';
-		stats.getDomElement().style.left = '0px';
-		stats.getDomElement().style.bottom = '0px';
-
-		$('body').append(stats.getDomElement());
-	})();
-
-	// Load Meshes
-	(function() {
-
-		// Taken from THREE.js source
-		// function updateGeometry(mesh) {
-		// 	mesh.geometry.computeBoundingSphere();		
-		// 	mesh.boundRadius = geometry.boundingSphere.radius;
-
-		// 	if( mesh.geometry.morphTargets.length ) {
-
-		// 		mesh.morphTargetBase = -1;
-		// 		mesh.morphTargetForcedOrder = [];
-		// 		mesh.morphTargetInfluences = [];
-		// 		mesh.morphTargetDictionary = {};
-
-		// 		for(var m = 0; m < mesh.geometry.morphTargets.length; m++) {
-
-		// 			mesh.morphTargetInfluences.push(0);
-		// 			mesh.morphTargetDictionary[mesh.geometry.morphTargets[m].name] = m;
-		// 		}
-		// 	}
-		// 	return mesh
-		// }
-
-		loader.load('Models/Monkey/High.js', function(geo) {
-			monkey = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x333399 }));
-
-			monkey.selectable = true;
-			monkey.name = 'monkey';
-			monkey.startSelect = function() {
-				this.material.color.setHex(0x333333);
-			};
-			monkey.stopSelect = function() {
-				this.material.color.setHex(0x333399);
-			};
-
-			scene.add(monkey);
-		});
-		// loader.load('Models/Monkey/Medium.js', function(model) {
-		// 	// model.computeBoundingSphere();
-		// 	// monkey.medium = model;
-		// });
-		// loader.load('Models/Monkey/Low.js', function(model) {
-		// 	// model.computeBoundingSphere();
-		// 	// monkey.low = model;
-		// });	
-	})();
-
-	// Set up scene
-	(function() {
-		var pointlight = new THREE.PointLight(0xFFFFFF);
-		pointlight.intensity = 1.7;
-		pointlight.position.x = 90;
-		pointlight.position.y = 130;
-		pointlight.position.z = 80;
-
-		var ambientLight = new THREE.PointLight(0xFFFFFF);
-		ambientLight.intensity = 0.3;
-		ambientLight.position.x = -200;
-		ambientLight.position.y = -200;
-		ambientLight.position.z = 200;
-
-
-		camera.position.x = 70;
-		camera.position.y = 40;
-		camera.position.z = 130;
-
-		camera.lookAt(new THREE.Vector3(0, 0, 0));
-
-		scene.add(pointlight);
-		scene.add(ambientLight); 
-		scene.add(camera);
-	})();
-
-	// Where the magic happens
-	var framerate = 1000 / 60, delta, lastFrame, thisFrame = new Date().getTime();
-	(function loop() {
-		lastFrame = thisFrame;
-		thisFrame = new Date().getTime();
-		delta = thisFrame - lastFrame;
-
-
-		//logger.log(monkey);
-		for(var index = 0; index < scene.__objects.length; index++) {
-			if(scene.__objects[index].name === 'monkey') {
-				scene.__objects[index].rotation.y += 0.001 * delta;
+		// Adds array to the selection
+		this.add = function(object) {
+			if(this.list.indexOf(object) === -1) {
+				this.list.push(object);
+				object.selected = true;
+				object.onselect();
 			}
 		}
 
-		stats.update();
-		renderer.render(scene, camera);
+		// Removes any elements in the array from the selection
+		this.remove = function(object) {
+			if(this.list.indexOf(object) !== -1) {
+				object.offselect();
+				this.list.splice(this.list.indexOf(object), 1);
+			}
+		}
 
-		window.requestAnimFrame(
-			loop, 
-			Math.max(0, framerate - (new Date().getTime() - thisFrame))
-			);
+		this.clear = function() {
+			for(var index = 0; index < this.list.length; index++) {
+				this.list[index].offselect();
+			}
+			this.list = [];
+		}
+
+		// Creates a DOM element who's values will reflect the position of the cursor
+		this.startDrag = function(e) {
+			$('#container').append('<div class="select"></div>');
+			this.drag = new Object();
+			this.drag.element = $('.select');
+			this.drag.startX = e.clientX;
+			this.drag.startY = e.clientY;
+		}
+
+		this.updateDrag = function(e) {
+			var x = e.clientX,
+				y = e.clientY;
+
+			var startX = this.drag.startX,
+				startY = this.drag.startY;
+
+			// Make sure that start variables are always smaller
+			if(startX > x) {
+				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
+			}
+			if(startY > y) {
+				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
+			}
+
+			this.drag.element.css('left', startX)
+							.css('top', startY)
+							.css('width', x - startX)
+							.css('height', y - startY);
+		}
+
+		this.endDrag = function(e) {
+			if(this.drag) {
+				this.drag.element.remove();
+			}
+		}
+
+		this.update = function(e) {
+			// Clear selection unless you're adding or removing from it
+			if(!e.shiftKey && !e.ctrlKey) {
+				this.clear();
+			}
+
+			// Get the boundaries of the box
+			var startX = ((this.drag.startX / window.innerWidth) * 2 - 1),
+				startY = ((this.drag.startY / window.innerHeight) * 2 - 1);
+
+			var x = ((e.clientX / window.innerWidth) * 2 - 1);
+				y =  ((e.clientY / window.innerHeight) * 2 - 1);
+
+			// Swap start and end variables so that start is always the smaller one
+			if(startX > x) {
+				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
+			}
+			if(startY > y) {	
+				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
+			}
+
+			// For each object in the scene
+			for(var index = 0; index < scene.sample.__objects.length; index++) {
+				var object = scene.sample.__objects[index];
+
+				if(object.selectable) {
+
+					// Get the object's center on the screen
+					var center = three.projector.projectVector(object.position, three.camera);
+
+					// If the object center is within the dragged box
+					if(center.x < x && center.x > startX && center.y < y && center.y > startY) {
+
+						// Remove from selection with the ctrl key
+						if(e.ctrlKey) {
+							this.remove(object);
+
+						// Add to the selection with anything else
+						} else {
+							this.add(object);
+						}
+					}
+				}
+			}
+		}
+	};
+	
+	// Camera Controls
+	var camera = new function() {
+		this.addViewRotation = function(across, up) {
+			// Add rotation around pivot
+			three.camera.view.y += across * settings.rotSenX;
+			three.camera.view.z -= up * settings.rotSenY;
+		};
+
+		this.moveView = function(leftAmount, upAmount) {
+			// Get vector for moving up/left
+			var up = new THREE.Vector3(Math.cos(three.camera.view.y - Math.PI / 2), 0, -Math.sin(three.camera.view.y - Math.PI / 2)),
+				left = new THREE.Vector3(Math.cos(three.camera.view.y), 0, -Math.sin(three.camera.view.y));
+
+			// Multiply up/left vectors by the difference in mouse movement
+			three.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.dragSen * three.camera.distance));
+			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.dragSen * three.camera.distance));
+		};
+
+		this.addZoom = function(difference) {
+			three.camera.distance += difference;
+
+			if(three.camera.distance < 200) { three.camera.distance = 200; }
+			if(three.camera.distance > 500) { three.camera.distance = 500; }
+		}
+	};
+
+	// Bind camera to keystrokes
+	(function() {
+		mouseVars = new Object();
+		mouseVars.down = false;
+		mouseVars.lastX = false;
+		mouseVars.lastY = false;
+
+		keysPressed = new Object();
+
+		document.onmousedown = function(e) {
+			mouseVars.down = true;
+			mouseVars.lastX = e.clientX;
+			mouseVars.lastY = e.clientY;
+
+			selection.startDrag(e);
+		};
+
+		document.onmouseup = function(e) {
+			// If a box is still being dragged
+			if(selection.drag) {
+				selection.update(e);
+				selection.endDrag(e);
+			}
+
+			mouseVars.down = false;
+			mouseVars.lastX = false;
+			mouseVars.lastY = false;
+		};
+
+		document.onmousemove = function(e) {
+			if(mouseVars.down) {
+				// Move screen
+				if(e.altKey && e.shiftKey) {
+
+					selection.endDrag(e);
+					
+					// Find difference between this frame and last frame
+					var x = ((e.clientX / window.innerWidth) * 2 - 1) - ((mouseVars.lastX / window.innerWidth) * 2 - 1),
+						y =  ((e.clientY / window.innerHeight) * 2 - 1) - ((mouseVars.lastY / window.innerHeight) * 2 - 1);
+
+					camera.moveView(x, y);
+
+				// Rotate Screen
+				} else if(e.altKey) {
+
+					selection.endDrag(e);
+					camera.addViewRotation(mouseVars.lastX - e.clientX, mouseVars.lastY - e.clientY);	
+				
+				// Update selection box
+				} else {
+					selection.updateDrag(e);
+				}
+			}
+			mouseVars.lastX = e.clientX;
+			mouseVars.lastY = e.clientY;
+		};
+
+		// Scroll to zoom
+		if(addEventListener) {
+			function moveObject(event) {
+				var delta = 0;
+
+				if (event.wheelDelta) {
+				   delta = event.wheelDelta / 120;
+				} else if (event.detail) {
+					delta = -event.detail / 3;
+				}
+				
+				if(delta > 0) {
+					camera.addZoom(-settings.scrollSen);
+				} else {
+					camera.addZoom(settings.scrollSen);
+				}
+				
+			}
+			document.addEventListener('DOMMouseScroll', moveObject, false);
+			document.onmousewheel = moveObject;
+		}
+
+		document.onkeydown = function(e) {
+			keysPressed[String.fromCharCode(e.charCode ? e.charCode : e.keyCode)] = true;
+		}
+		document.onkeyup = function(e) {
+			keysPressed[String.fromCharCode(e.charCode ? e.charCode : e.keyCode)] = false;
+		}
 	})();
 
+	(function() {
+		(function renderLoop() {
+
+			for(var index = 0; index < scene.sample.__objects.length; index++) {
+				item = scene.sample.__objects[index];
+				switch(item.name) {
+					case 'unit':
+						item.floatCounter += 0.05;
+
+						item.position.y = 6 + Math.sin(item.floatCounter) * 4;
+						break;
+
+					case 'selection':
+						//THREE.AnimationHandler.update(16);
+						break;
+				}
+			}
+
+			// Update camera position
+			(function() {
+				if(keysPressed.W) {
+					camera.moveView(0, 0.05);
+				}
+				if(keysPressed.S) {
+					camera.moveView(0, -0.05);
+				}
+				if(keysPressed.A) {
+					camera.moveView(0.05, 0);
+				}
+				if(keysPressed.D) {
+					camera.moveView(-0.05, 0);
+				}
+			})();
+			
+
+			// Update camera rotation
+			(function() {
+				if(keysPressed.Q) {
+					camera.addViewRotation(-5, 0);
+				}
+				if(keysPressed.E) {
+					camera.addViewRotation(5, 0)
+				}
+
+				if(three.camera.view.z > 1.57) { three.camera.view.z = 1.57; }
+				if(three.camera.view.z < 0) { three.camera.view.z = 0; }
+
+				three.camera.position.x = three.camera.pivot.x + (Math.sin(three.camera.view.y) * three.camera.distance);
+				three.camera.position.y = three.camera.pivot.y + (Math.sin(three.camera.view.z) * three.camera.distance);
+				three.camera.position.z = three.camera.pivot.z + (Math.cos(three.camera.view.y) * three.camera.distance);
+
+				three.camera.lookAt(three.camera.pivot);
+			})();      
+
+			utils.stats.update();
+			three.renderer.render(scene.sample, three.camera);
+			requestAnimationFrame(renderLoop);
+		})();
+	})();
 })();
