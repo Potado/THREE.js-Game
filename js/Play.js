@@ -25,7 +25,8 @@
 		this.dragSen = 0.6;
 		this.arrowsSen = 0.03;
 
-		this.clickThreshold = 5;
+		this.clickThreshold = 50; // Differentiates between dragging and clicking
+		this.selectThreshold = 100; // Closest distance that an object can be selected
 	};
 
 	// Scene
@@ -49,36 +50,40 @@
 
 		// Load models
 		utils.loader.load('Models/Unit/simpleMesh.js', function(geo) {
-			var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
-			temp.material.color.setHex(0xFFFFFF);
-			temp.name = 'unit';
+			for(var x = -200; x <= 200; x += 50) {
+				for(var z = -200; z <= 200; z += 50) {
+					var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
+					temp.material.color.setHex(0xFFFFFF);
+					temp.name = 'unit';
 
-			temp.position.x = 0;
-			temp.position.y = 0;
-			temp.position.z = 0;
+					temp.position.x = x;
+					temp.position.y = 0;
+					temp.position.z = z;
 
-			temp.selectable = true;
-			temp.onselect = function() {
-				this.material.color.setHex(0x22DD22)
+					temp.selectable = true;
+					temp.onselect = function() {
+						this.material.color.setHex(0x22DD22)
+					}
+					temp.offselect = function() {
+						this.material.color.setHex(0xFFFFFF);
+					}
+
+					temp.floatCounter = 0;
+					sample.add(temp);
+				}
 			}
-			temp.offselect = function() {
-				this.material.color.setHex(0xFFFFFF);
-			}
-
-			temp.floatCounter = 0;
-			sample.add(temp);
 		});
-		utils.loader.load('Models/Unit/selection.js', function(geo) {
+		// utils.loader.load('Models/Unit/selection.js', function(geo) {
 
-			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-			temp.name = 'selection';
+		// 	var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+		// 	temp.name = 'selection';
 
-			temp.position.x = 0;
-			temp.position.y = -20;
-			temp.position.z = 0;
+		// 	temp.position.x = 0;
+		// 	temp.position.y = -20;
+		// 	temp.position.z = 0;
 
-			sample.add(temp);
-		});
+		// 	sample.add(temp);
+		// });
 		utils.loader.load('Models/Grid.js', function(geo) {
 			var temp = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
 			temp.material.color.setHex(0xE3E3E3);
@@ -131,6 +136,10 @@
 		this.camera = camera;
 	};
 
+	var commands = new function() {
+		
+	};
+
 	// Selected units/buildings
 	var selection = new function() {
 		this.list = [];
@@ -176,12 +185,14 @@
 				startY = this.drag.startY;
 
 			// Make sure that start variables are always smaller
-			if(startX > x) {
-				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
-			}
+			if(startX > x) {	
+				var temp = x;
+				x = startX;
+				startX = temp; }
 			if(startY > y) {
-				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
-			}
+				var temp = y;
+				y = startY;
+				startY = temp; }
 
 			this.drag.element.css('left', startX)
 							.css('top', startY)
@@ -193,6 +204,11 @@
 			if(this.drag) {
 				this.drag.element.remove();
 			}
+		}
+
+		this.isClick = function(a, b, x, y) {
+			// *Cough*
+			return (Math.abs(a - x) + Math.abs(b - y) < settings.clickThreshold);
 		}
 
 		this.update = function(e) {
@@ -208,13 +224,19 @@
 			var x = ((e.clientX / window.innerWidth) * 2 - 1);
 				y =  ((e.clientY / window.innerHeight) * 2 - 1);
 
-			// Swap start and end variables so that start is always the smaller one
-			if(startX > x) {
-				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
-			}
-			if(startY > y) {	
-				try { [startX, x] = [x, startX]; } catch(error) { x ^= y; y ^= x; x ^= y; }
-			}
+			// Make sure that start variables are always smaller
+			if(startX > x) {	
+				var temp = x;
+				x = startX;
+				startX = temp; }
+			if(startY > y) {
+				var temp = y;
+				y = startY;
+				startY = temp; }
+
+			// Differentiate clicking between dragging
+			var click = this.isClick(e.clientX, e.clientY, this.drag.startX, this.drag.startY),
+				closestClick = [undefined, settings.selectThreshold];
 
 			// For each object in the scene
 			for(var index = 0; index < scene.sample.__objects.length; index++) {
@@ -223,19 +245,52 @@
 				if(object.selectable) {
 
 					// Get the object's center on the screen
-					var center = three.projector.projectVector(object.position, three.camera);
+					var center = three.projector.projectVector(
+						new THREE.Vector3(
+							object.position.x, 
+							-object.position.y, 
+							object.position.z
+						), 
+						three.camera
+					);
+					center.y = -center.y;
 
-					// If the object center is within the dragged box
-					if(center.x < x && center.x > startX && center.y < y && center.y > startY) {
+					if(click) {
+						 // Distance from click to object
+						var distance = Math.abs(e.clientX - ((center.x + 1) / 2 * window.innerWidth)) + 
+									   Math.abs(e.clientY - ((center.y + 1) / 2 * window.innerHeight));
 
-						// Remove from selection with the ctrl key
-						if(e.ctrlKey) {
-							this.remove(object);
-
-						// Add to the selection with anything else
-						} else {
-							this.add(object);
+						if(distance < closestClick[1]) {
+							closestClick = [object, distance]
 						}
+
+					// If dragging
+					} else {
+						// If the object center is within the dragged box
+						if(center.x < x && center.x > startX && center.y < y && center.y > startY) {
+
+							// Remove from selection with the ctrl key
+							if(e.ctrlKey) {
+								this.remove(object);
+
+							// Add to the selection otherwise
+							} else {
+								this.add(object);
+							}
+						}
+					}
+				}
+			}
+			// Add the closest object to the click origin to the selection
+			if(click) {
+				if(closestClick[0]) {
+					// Remove from selection with the ctrl key
+					if(e.ctrlKey) {
+						this.remove(closestClick[0]);
+					
+					// Add to the selection otherwise
+					} else {
+						this.add(closestClick[0]);
 					}
 				}
 			}
@@ -257,14 +312,11 @@
 
 			// Multiply up/left vectors by the difference in mouse movement
 			three.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.dragSen * three.camera.distance));
-			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.dragSen * three.camera.distance));
+			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.dragSen * three.camera.distance * three.camera.aspect));
 		};
 
 		this.addZoom = function(difference) {
 			three.camera.distance += difference;
-
-			if(three.camera.distance < 200) { three.camera.distance = 200; }
-			if(three.camera.distance > 500) { three.camera.distance = 500; }
 		}
 	};
 
@@ -278,24 +330,42 @@
 		keysPressed = new Object();
 
 		document.onmousedown = function(e) {
-			mouseVars.down = true;
-			mouseVars.lastX = e.clientX;
-			mouseVars.lastY = e.clientY;
+			// Left click
+			if(e.button === 0) {
+				mouseVars.down = true;
+				mouseVars.lastX = e.clientX;
+				mouseVars.lastY = e.clientY;
 
-			selection.startDrag(e);
+				selection.startDrag(e);
+			
+			// Right click
+			} else if(e.button === 1) {
+				
+			}
 		};
 
 		document.onmouseup = function(e) {
-			// If a box is still being dragged
-			if(selection.drag) {
-				selection.update(e);
-				selection.endDrag(e);
-			}
+			// Left click
+			if(e.button === 0) {
+				// If a box is still being dragged
+				if(selection.drag) {
+					selection.update(e);
+					selection.endDrag(e);
+				}
 
-			mouseVars.down = false;
-			mouseVars.lastX = false;
-			mouseVars.lastY = false;
+				mouseVars.down = false;
+				mouseVars.lastX = false;
+				mouseVars.lastY = false;
+			
+			// Right click
+			} else if(e.button === 1) {
+				
+			}
 		};
+
+		document.oncontextmenu = function(e) {
+			return false;
+		}
 
 		document.onmousemove = function(e) {
 			if(mouseVars.down) {
@@ -364,7 +434,7 @@
 					case 'unit':
 						item.floatCounter += 0.05;
 
-						item.position.y = 6 + Math.sin(item.floatCounter) * 4;
+						//item.position.y = Math.sin(item.floatCounter) * 4;
 						break;
 
 					case 'selection':
@@ -401,6 +471,9 @@
 
 				if(three.camera.view.z > 1.57) { three.camera.view.z = 1.57; }
 				if(three.camera.view.z < 0) { three.camera.view.z = 0; }
+
+				if(three.camera.distance < 200) { three.camera.distance = 200; }
+				if(three.camera.distance > 500) { three.camera.distance = 500; }
 
 				three.camera.position.x = three.camera.pivot.x + (Math.sin(three.camera.view.y) * three.camera.distance);
 				three.camera.position.y = three.camera.pivot.y + (Math.sin(three.camera.view.z) * three.camera.distance);
