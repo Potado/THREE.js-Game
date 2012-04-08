@@ -17,13 +17,14 @@
 
 	// Settings
 	var settings = new function() {
-		this.scrollSen = 30;
+		this.scrollSen = 30; // Zoom with mouse
+		this.scrollKeySen = 5; // Zoom with keys
 
-		this.rotSenX = 0.008;
-		this.rotSenY = 0.006;
+		this.rotSen = 0.005; // Rotation with mouse
+		this.rotKeySen = 7; // Rotation with keys
 
-		this.dragSen = 0.6;
-		this.arrowsSen = 0.03;
+		this.dragSen = 0.6; // Movement with mouse
+		this.dragKeySen = 0.03; // Movement with keys
 
 		this.clickThreshold = 50; // Differentiates between dragging and clicking
 		this.selectThreshold = 100; // Closest distance that an object can be selected
@@ -245,15 +246,16 @@
 				if(object.selectable) {
 
 					// Get the object's center on the screen
+					// * invert the y coordinates before and after or it doesn't work properly
 					var center = three.projector.projectVector(
 						new THREE.Vector3(
 							object.position.x, 
-							-object.position.y, 
+							-object.position.y, // *
 							object.position.z
 						), 
 						three.camera
 					);
-					center.y = -center.y;
+					center.y = -center.y; // *
 
 					if(click) {
 						 // Distance from click to object
@@ -301,8 +303,8 @@
 	var camera = new function() {
 		this.addViewRotation = function(across, up) {
 			// Add rotation around pivot
-			three.camera.view.y += across * settings.rotSenX;
-			three.camera.view.z -= up * settings.rotSenY;
+			three.camera.view.y += across * settings.rotSen;
+			three.camera.view.z -= up * settings.rotSen;
 		};
 
 		this.moveView = function(leftAmount, upAmount) {
@@ -312,11 +314,12 @@
 
 			// Multiply up/left vectors by the difference in mouse movement
 			three.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.dragSen * three.camera.distance));
-			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.dragSen * three.camera.distance * three.camera.aspect));
+			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.dragSen * three.camera.distance));
 		};
 
 		this.addZoom = function(difference) {
 			three.camera.distance += difference;
+			three.camera.view.z += difference * 0.005;
 		}
 	};
 
@@ -370,7 +373,7 @@
 		document.onmousemove = function(e) {
 			if(mouseVars.down) {
 				// Move screen
-				if(e.altKey && e.shiftKey) {
+				if(keysPressed.C) {
 
 					selection.endDrag(e);
 					
@@ -378,14 +381,15 @@
 					var x = ((e.clientX / window.innerWidth) * 2 - 1) - ((mouseVars.lastX / window.innerWidth) * 2 - 1),
 						y =  ((e.clientY / window.innerHeight) * 2 - 1) - ((mouseVars.lastY / window.innerHeight) * 2 - 1);
 
-					camera.moveView(x, y);
+					camera.moveView(x * three.camera.aspect, y);
 
 				// Rotate Screen
-				} else if(e.altKey) {
+				} else if(keysPressed.Z) {
 
 					selection.endDrag(e);
-					camera.addViewRotation(mouseVars.lastX - e.clientX, mouseVars.lastY - e.clientY);	
-				
+					camera.addViewRotation(mouseVars.lastX - e.clientX, 0);
+					camera.addZoom(e.clientY - mouseVars.lastY);	
+
 				// Update selection box
 				} else {
 					selection.updateDrag(e);
@@ -446,16 +450,16 @@
 			// Update camera position
 			(function() {
 				if(keysPressed.W) {
-					camera.moveView(0, 0.05);
+					camera.moveView(0, settings.dragKeySen);
 				}
 				if(keysPressed.S) {
-					camera.moveView(0, -0.05);
+					camera.moveView(0, -settings.dragKeySen);
 				}
 				if(keysPressed.A) {
-					camera.moveView(0.05, 0);
+					camera.moveView(settings.dragKeySen, 0);
 				}
 				if(keysPressed.D) {
-					camera.moveView(-0.05, 0);
+					camera.moveView(-settings.dragKeySen, 0);
 				}
 			})();
 			
@@ -463,14 +467,20 @@
 			// Update camera rotation
 			(function() {
 				if(keysPressed.Q) {
-					camera.addViewRotation(-5, 0);
+					camera.addViewRotation(-settings.rotKeySen, 0);
 				}
 				if(keysPressed.E) {
-					camera.addViewRotation(5, 0)
+					camera.addViewRotation(settings.rotKeySen, 0);
+				}
+				if(keysPressed.R) {
+					camera.addZoom(-settings.scrollKeySen);
+				}
+				if(keysPressed.F) {
+					camera.addZoom(settings.scrollKeySen);
 				}
 
 				if(three.camera.view.z > 1.57) { three.camera.view.z = 1.57; }
-				if(three.camera.view.z < 0) { three.camera.view.z = 0; }
+				if(three.camera.view.z < 0.2) { three.camera.view.z = 0.2; }
 
 				if(three.camera.distance < 200) { three.camera.distance = 200; }
 				if(three.camera.distance > 500) { three.camera.distance = 500; }

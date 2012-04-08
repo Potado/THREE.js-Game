@@ -33,12 +33,3 @@ body {
 	-khtml-opacity: 0.2;
 	opacity: 0.2; 
 }
-.hello {
-	background: black;
-	position: absolute;
-	left: 0px;
-	top: 0px;
-
-	width: 5px;
-	height: 5px;
-}
