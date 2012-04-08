@@ -51,40 +51,38 @@
 
 		// Load models
 		utils.loader.load('Models/Unit/simpleMesh.js', function(geo) {
-			for(var x = -200; x <= 200; x += 50) {
-				for(var z = -200; z <= 200; z += 50) {
-					var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
-					temp.material.color.setHex(0xFFFFFF);
-					temp.name = 'unit';
+			for(var x = -50; x <= 50; x += 50) {
+				var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
+				temp.material.color.setHex(0xFFFFFF);
+				temp.name = 'unit';
 
-					temp.position.x = x;
-					temp.position.y = 0;
-					temp.position.z = z;
+				temp.position.x = x;
+				temp.position.y = 0;
+				temp.position.z = 0;
 
-					temp.selectable = true;
-					temp.onselect = function() {
-						this.material.color.setHex(0x22DD22)
-					}
-					temp.offselect = function() {
-						this.material.color.setHex(0xFFFFFF);
-					}
-
-					temp.floatCounter = 0;
-					sample.add(temp);
+				temp.selectable = true;
+				temp.onselect = function() {
+					this.material.color.setHex(0x22DD22)
 				}
+				temp.offselect = function() {
+					this.material.color.setHex(0xFFFFFF);
+				}
+
+				temp.floatCounter = 0;
+				sample.add(temp);
 			}
 		});
-		// utils.loader.load('Models/Unit/selection.js', function(geo) {
+		utils.loader.load('Models/Terrain/terrain.js', function(geo) {
 
-		// 	var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-		// 	temp.name = 'selection';
+			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			temp.name = 'selection';
 
-		// 	temp.position.x = 0;
-		// 	temp.position.y = -20;
-		// 	temp.position.z = 0;
+			temp.position.x = 0;
+			temp.position.y = -25;
+			temp.position.z = 0;
 
-		// 	sample.add(temp);
-		// });
+			sample.add(temp);
+		});
 		utils.loader.load('Models/Grid.js', function(geo) {
 			var temp = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
 			temp.material.color.setHex(0xE3E3E3);
@@ -107,7 +105,7 @@
 		var projector = new THREE.Projector();
 		var camera = new THREE.PerspectiveCamera(
 			45,
-			innerWidth / innerHeight,
+			window.innerWidth / window.innerHeight,
 			0.1,
 			100000
 		);
@@ -120,15 +118,15 @@
 		// The rotation of the camera around the pivot (rads)
 		camera.view = new THREE.Vector3(0, 0, 0);
 
-		renderer.setSize(innerWidth, innerHeight);
+		renderer.setSize(window.innerWidth, window.innerHeight - 5);
 		$('#container').append(renderer.domElement);
 
 		scene.sample.add(camera);
 
 		onresize = function() {
-			renderer.setSize(innerWidth, innerHeight);
+			renderer.setSize(window.innerWidth, window.innerHeight - 5);
 
-			camera.aspect = innerWidth / innerHeight;
+			camera.aspect = window.innerWidth / window.innerHeight;
 			camera.updateProjectionMatrix();
 		}
 
@@ -138,7 +136,13 @@
 	};
 
 	var commands = new function() {
-		
+		this.move = function(destination) {
+			for(var index = 0; index < selection.list.length; index++) {
+				object = selection.list[index];
+
+				object.position = destination;
+			}
+		}
 	};
 
 	// Selected units/buildings
@@ -342,8 +346,19 @@
 				selection.startDrag(e);
 			
 			// Right click
-			} else if(e.button === 1) {
-				
+			} else if(e.button === 2) {
+				var x = ((e.clientX / window.innerWidth) * 2 - 1),
+					y =  ((e.clientY / window.innerHeight) * 2 - 1); 
+
+				var point = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), three.camera);
+
+				var ray = new THREE.Ray(three.camera.position, point.subSelf(three.camera.position).normalize());
+
+				var intersect = ray.intersectObjects(scene.sample.__objects);
+
+				console.log(intersect[0].point);
+
+				commands.move(intersect[0].point);
 			}
 		};
 
@@ -361,7 +376,7 @@
 				mouseVars.lastY = false;
 			
 			// Right click
-			} else if(e.button === 1) {
+			} else if(e.button === 2) {
 				
 			}
 		};
@@ -373,7 +388,7 @@
 		document.onmousemove = function(e) {
 			if(mouseVars.down) {
 				// Move screen
-				if(keysPressed.C) {
+				if(keysPressed.X) {
 
 					selection.endDrag(e);
 					
