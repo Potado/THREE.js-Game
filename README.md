@@ -1,0 +1,1 @@
+This is a real time strategy game made with THREE.js. Go to [this page](http://montythibault.github.com/THREE.js-Game/) to view the game in action!

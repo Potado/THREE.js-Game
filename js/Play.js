@@ -75,7 +75,9 @@
 		utils.loader.load('Models/Terrain/terrain.js', function(geo) {
 
 			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-			temp.name = 'selection';
+			temp.name = 'terrain';
+
+			temp.moveOn = true;
 
 			temp.position.x = 0;
 			temp.position.y = -25;
@@ -250,16 +252,17 @@
 				if(object.selectable) {
 
 					// Get the object's center on the screen
-					// * invert the y coordinates before and after or it doesn't work properly
 					var center = three.projector.projectVector(
 						new THREE.Vector3(
 							object.position.x, 
-							-object.position.y, // *
+							object.position.y,
 							object.position.z
 						), 
 						three.camera
 					);
-					center.y = -center.y; // *
+					center.y = -center.y; // It doesn't work properly if you don't do this :D
+
+					//$('.hello').css('left', (center.x + 1) / 2 * window.innerWidth).css('top', (center.y - 1) / 2 * window.innerHeight);
 
 					if(click) {
 						 // Distance from click to object
@@ -351,12 +354,12 @@
 					y =  ((e.clientY / window.innerHeight) * 2 - 1); 
 
 				var point = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), three.camera);
-
 				var ray = new THREE.Ray(three.camera.position, point.subSelf(three.camera.position).normalize());
-
 				var intersect = ray.intersectObjects(scene.sample.__objects);
 
-				console.log(intersect[0].point);
+				//console.log([(point.x + 1) / 2 * window.innerWidth, -(point.y + 1) / 2 * window.innerHeight]);
+
+				//$('.hello').css('left', (point.x + 1) / 2 * window.innerWidth).css('top', (point.y - 1) / 2 * window.innerHeight);
 
 				commands.move(intersect[0].point);
 			}
