@@ -124,14 +124,14 @@
 		});
 		utils.loader.load('Models/Grid.js', function(geo) {
 			var temp = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
-			temp.material.color.setHex(0xE3E3E3);
+			temp.material.color.setHex(0x999999);
 
 			temp.name = 'grid'
 			temp.position.x = 0;
 			temp.position.y = -20;
 			temp.position.z = 0;
 
-			//sample.add(temp);
+			sample.add(temp);
 		});
 
 
