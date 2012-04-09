@@ -56,25 +56,32 @@
 	var scene = new function() {
 		var sample = new THREE.Scene();
 
-		var pointLight = new THREE.PointLight(0xFFFFFF);
-		pointLight.intensity = 1;
-		pointLight.position.x = 0;
-		pointLight.position.y = 200;
-		pointLight.position.z = 100;
+		var spotLight = new THREE.DirectionalLight(0xFFFFFF);
+		spotLight.position.x = 300;
+		spotLight.position.y = 400;
+		spotLight.position.z = 600;
 
-		var ambientLight = new THREE.PointLight(0xFFFFFF);
-		ambientLight.intensity = 0.0;
-		ambientLight.position.x = -300;
-		ambientLight.position.y = -200;
-		ambientLight.position.z = -200;
+		spotLight.castShadow = true;
+		spotLight.shadowDarkness = 0.3;
 
-		sample.add(pointLight);
-		sample.add(ambientLight);
+		spotLight.shadowCameraNear = 10;
+		spotLight.shadowCameraFar = 1500;
+		spotLight.shadowMapWidth = 2048;
+		spotLight.shadowMapHeight = 2048;
+
+		var fillLight = new THREE.DirectionalLight(0xAAAAAA);
+
+		fillLight.position.x = -100;
+		fillLight.position.y = 300;
+		fillLight.position.z = -400
+
+		sample.add(spotLight);
+		sample.add(fillLight);
 
 		// Load models
 		utils.loader.load('Models/Unit/simpleMesh.js', function(geo) {
 			for(var x = -50; x <= 50; x += 50) {
-				var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
+				var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Unit/ao.png' ) }));
 				temp.material.color.setHex(0xFFFFFF);
 
 				temp.position.x = x;
@@ -83,6 +90,9 @@
 
 				temp.speed = 1;
 				temp.route = [];
+
+				temp.castShadow = true;
+				//temp.receiveShadow = true;
 
 				temp.selectable = true;
 				temp.onselect = function() {
@@ -96,7 +106,7 @@
 		});
 		utils.loader.load('Models/Terrain/terrain.js', function(geo) {
 
-			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Terrain/ao.png' ) }));
 			temp.name = 'terrain';
 
 			temp.moveOn = true;
@@ -104,6 +114,11 @@
 			temp.position.x = 0;
 			temp.position.y = -25;
 			temp.position.z = 0;
+
+			temp.castShadow = true;
+			temp.receiveShadow = true;
+
+			//temp.overdraw = true;
 
 			sample.add(temp);
 		});
@@ -116,7 +131,7 @@
 			temp.position.y = -20;
 			temp.position.z = 0;
 
-			sample.add(temp);
+			//sample.add(temp);
 		});
 
 
@@ -125,7 +140,11 @@
 
 	// THREE.js Setup
 	var three = new function() {
-		var renderer = new THREE.WebGLRenderer();
+		var renderer = new THREE.WebGLRenderer({ antialias: true });
+		
+		renderer.shadowMapEnabled = true;
+		renderer.shadowMapSoft = true; 
+
 		var projector = new THREE.Projector();
 		var camera = new THREE.PerspectiveCamera(
 			45,
@@ -137,10 +156,11 @@
 		// The location of the point that the camera rotates around
 		camera.pivot = new THREE.Vector3(0, 0, 0);
 
-		camera.distance = 250;
-
 		// The rotation of the camera around the pivot (rads)
 		camera.view = new THREE.Vector3(0, 0, 0);
+
+		camera.distance = 250;
+		camera.view.z = 0.45;
 
 		renderer.setSize(window.innerWidth, window.innerHeight - 5);
 		$('#container').append(renderer.domElement);
@@ -157,6 +177,33 @@
 		this.renderer = renderer;
 		this.projector = projector;
 		this.camera = camera;
+	};
+
+	var misc = new function() {
+		this.lineToGeometry = function(line) {
+			var geo = new THREE.Geometry();
+			geo.dynamic = true;
+
+			for(var index = 1; index < line.vertices.length; index++) {
+				var vertexA = line.vertices[index],
+					vertexB = line.vertices[index - 1];
+
+				var face = new THREE.Face4(
+					vertexA,
+					vertexA.clone().position.addSelf(new THREE.Vector3(10, 0, 10)),
+					vertexB,
+					vertexB.clone().position.addSelf(new THREE.Vector3(10, 0, 10))
+				);
+
+				geo.faces.push(face);
+				geo.vertices.push(vertexA);
+				geo.vertices.push(vertexB);
+				geo.vertices.push(vertexA.clone().position.addSelf(new THREE.Vector3(10, 0, 10)));
+				geo.vertices.push(vertexB.clone().position.addSelf(new THREE.Vector3(10, 0, 10)));
+			}
+
+			return geo;
+		};
 	};
 
 	var commands = new function() {
@@ -312,7 +359,7 @@
 						if(center.x < x && center.x > startX && center.y < y && center.y > startY) {
 
 							// Remove from selection with the ctrl key
-							if(keysPressed[settings.key.remove]) {
+							if(keysPressed[settings.keys.remove]) {
 								this.remove(object);
 
 							// Add to the selection otherwise
@@ -481,6 +528,16 @@
 
 	// Render loop
 	(function() {
+
+		var geo = new THREE.Geometry();
+		geo.vertices.push(new THREE.Vertex(new THREE.Vector3(-10, 0, 0)));
+	    geo.vertices.push(new THREE.Vertex(new THREE.Vector3(0, 10, 0)));
+	    geo.vertices.push(new THREE.Vertex(new THREE.Vector3(10, 0, 0)));
+
+	   
+
+	   	//scene.sample.add(new THREE.Mesh(misc.lineToGeometry(geo)));
+
 		(function renderLoop() {
 
 			for(var index = 0; index < scene.sample.__objects.length; index++) {
@@ -490,7 +547,7 @@
 				if(object.route && object.speed && object.route.length > 0) {
 					var nextCheckpoint = object.route[0];
 
-					if(object.position.distanceTo(nextCheckpoint) < 10) {
+					if(object.position.distanceTo(nextCheckpoint) < 2) {
 						object.route.shift();
 
 						if(object.route.length > 0) {
@@ -502,6 +559,8 @@
 
 				// Specifics for different units
 				switch(object.name) {
+					case 'temp':
+						scene.sample.remove(object);
 				}
 			}
 
@@ -537,7 +596,7 @@
 					camera.addZoom(settings.scrollKeySen);
 				}
 
-				if(three.camera.view.z > 1.57) { three.camera.view.z = 1.57; }
+				if(three.camera.view.z > 1.7) { three.camera.view.z = 1.7; }
 				if(three.camera.view.z < 0.2) { three.camera.view.z = 0.2; }
 
 				if(three.camera.distance < 200) { three.camera.distance = 200; }
