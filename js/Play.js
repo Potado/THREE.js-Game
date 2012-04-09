@@ -104,24 +104,28 @@
 				sample.add(temp);
 			}
 		});
+
+		// Terrain
 		utils.loader.load('Models/Terrain/terrain.js', function(geo) {
 
 			var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Terrain/ao.png' ) }));
-			temp.name = 'terrain';
-
-			temp.moveOn = true;
-
-			temp.position.x = 0;
-			temp.position.y = -25;
-			temp.position.z = 0;
+			temp.class = '';
 
 			temp.castShadow = true;
 			temp.receiveShadow = true;
 
-			//temp.overdraw = true;
+			sample.add(temp);
+		});
+		utils.loader.load('Models/Terrain/unitMovement.js', function(geo) {
+
+			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			temp.class = 'unitMovement';
+
+			temp.visible = false;
 
 			sample.add(temp);
 		});
+
 		utils.loader.load('Models/Grid.js', function(geo) {
 			var temp = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
 			temp.material.color.setHex(0x999999);
@@ -430,17 +434,27 @@
 			
 			// Right click
 			} else if(e.button === 2) {
-				var x = ((e.clientX / window.innerWidth) * 2 - 1),
-					y =  ((e.clientY / window.innerHeight) * 2 - 1); 
+				if(selection.list.length !== 0) {
+					var x = ((e.clientX / window.innerWidth) * 2 - 1),
+						y =  ((e.clientY / window.innerHeight) * 2 - 1); 
 
-				var point = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), three.camera);
-				var ray = new THREE.Ray(three.camera.position, point.subSelf(three.camera.position).normalize());
-				var intersect = ray.intersectObjects(scene.sample.__objects);
+					var point = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), three.camera);
+					var ray = new THREE.Ray(three.camera.position, point.subSelf(three.camera.position).normalize());
 
-				//console.log([(point.x + 1) / 2 * window.innerWidth, -(point.y + 1) / 2 * window.innerHeight]);
+					for(var index = 0; index < scene.sample.__objects.length; index++) {
+						var object = scene.sample.__objects[index];
 
-				//$('.hello').css('left', (point.x + 1) / 2 * window.innerWidth).css('top', (point.y - 1) / 2 * window.innerHeight);
-				commands.move(e, intersect[0].point);
+						// Find the low poly, click catching mesh
+						if(object.class === 'unitMovement') {
+
+							var intersect = ray.intersectObject(object);
+
+							if(intersect.length > 0) {
+								commands.move(e, intersect[0].point);
+							}
+						}
+					}
+				}
 			}
 		};
 
@@ -534,7 +548,7 @@
 	    geo.vertices.push(new THREE.Vertex(new THREE.Vector3(0, 10, 0)));
 	    geo.vertices.push(new THREE.Vertex(new THREE.Vector3(10, 0, 0)));
 
-	   
+
 
 	   	//scene.sample.add(new THREE.Mesh(misc.lineToGeometry(geo)));
 
@@ -558,7 +572,7 @@
 				}
 
 				// Specifics for different units
-				switch(object.name) {
+				switch(object.class) {
 					case 'temp':
 						scene.sample.remove(object);
 				}
