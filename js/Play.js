@@ -24,11 +24,32 @@
 		this.rotSen = 0.005; // Rotation with mouse
 		this.rotKeySen = 7; // Rotation with keys
 
-		this.dragSen = 0.6; // Movement with mouse
-		this.dragKeySen = 0.03; // Movement with keys
+		this.panSen = 0.6; // Pan with mouse
+		this.panKeySen = 0.03; // Pan with keys
 
 		this.clickThreshold = 50; // Differentiates between dragging and clicking
 		this.selectThreshold = 100; // Closest distance that an object can be selected
+
+		// Keyboard shortcuts
+		this.keys = new function() {
+			this.add = 'C';
+			this.remove = 'V';
+
+			this.camera = new function() {
+				this.forward = 'W';
+				this.backward = 'S';
+				this.left = 'A';
+				this.right = 'D';
+
+				this.rotateLeft = 'Q';
+				this.rotateRight = 'E';
+				this.zoomIn = 'R';
+				this.zoomOut = 'F';
+
+				this.rotateMouse = 'Z';
+				this.panMouse = 'X';
+			};
+		};
 	};
 
 	// Scene
@@ -145,7 +166,7 @@
 
 				if(object.route) {
 
-					if(keysPressed.C) {
+					if(keysPressed[settings.keys.add]) {
 						object.route.push(destination.clone());
 
 					} else {
@@ -234,7 +255,7 @@
 
 		this.updateUnits = function(e) {
 			// Clear selection unless you're adding or removing from it
-			if(!keysPressed.C && !keysPressed.V) {
+			if(!keysPressed[settings.keys.add] && !keysPressed[settings.keys.remove]) {
 				this.clear();
 			}
 
@@ -291,7 +312,7 @@
 						if(center.x < x && center.x > startX && center.y < y && center.y > startY) {
 
 							// Remove from selection with the ctrl key
-							if(keysPressed.V) {
+							if(keysPressed[settings.key.remove]) {
 								this.remove(object);
 
 							// Add to the selection otherwise
@@ -306,7 +327,7 @@
 			if(click) {
 				if(closestClick[0]) {
 					// Remove from selection with the ctrl key
-					if(keysPressed.V) {
+					if(keysPressed[settings.keys.remove]) {
 						this.remove(closestClick[0]);
 					
 					// Add to the selection otherwise
@@ -332,8 +353,8 @@
 				left = new THREE.Vector3(Math.cos(three.camera.view.y), 0, -Math.sin(three.camera.view.y));
 
 			// Multiply up/left vectors by the difference in mouse movement
-			three.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.dragSen * three.camera.distance));
-			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.dragSen * three.camera.distance));
+			three.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.panSen * three.camera.distance));
+			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.panSen * three.camera.distance));
 		};
 
 		this.addZoom = function(difference) {
@@ -401,8 +422,8 @@
 
 		document.onmousemove = function(e) {
 			if(mouseVars.down) {
-				// Move screen
-				if(keysPressed.X) {
+				// Pan screen
+				if(keysPressed[settings.keys.camera.panMouse]) {
 
 					selection.endDrag(e);
 					
@@ -413,7 +434,7 @@
 					camera.moveView(x * three.camera.aspect, y);
 
 				// Rotate Screen
-				} else if(keysPressed.Z) {
+				} else if(keysPressed[settings.keys.camera.rotateMouse]) {
 
 					selection.endDrag(e);
 					camera.addViewRotation(mouseVars.lastX - e.clientX, 0);
@@ -486,33 +507,33 @@
 
 			// Update camera position
 			(function() {
-				if(keysPressed.W) {
-					camera.moveView(0, settings.dragKeySen);
+				if(keysPressed[settings.keys.camera.forward]) {
+					camera.moveView(0, settings.panKeySen);
 				}
-				if(keysPressed.S) {
-					camera.moveView(0, -settings.dragKeySen);
+				if(keysPressed[settings.keys.camera.backward]) {
+					camera.moveView(0, -settings.panKeySen);
 				}
-				if(keysPressed.A) {
-					camera.moveView(settings.dragKeySen, 0);
+				if(keysPressed[settings.keys.camera.left]) {
+					camera.moveView(settings.panKeySen, 0);
 				}
-				if(keysPressed.D) {
-					camera.moveView(-settings.dragKeySen, 0);
+				if(keysPressed[settings.keys.camera.right]) {
+					camera.moveView(-settings.panKeySen, 0);
 				}
 			})();
 			
 
 			// Update camera rotation
 			(function() {
-				if(keysPressed.Q) {
+				if(keysPressed[settings.keys.camera.rotateLeft]) {
 					camera.addViewRotation(-settings.rotKeySen, 0);
 				}
-				if(keysPressed.E) {
+				if(keysPressed[settings.keys.camera.rotateRight]) {
 					camera.addViewRotation(settings.rotKeySen, 0);
 				}
-				if(keysPressed.R) {
+				if(keysPressed[settings.keys.camera.zoomIn]) {
 					camera.addZoom(-settings.scrollKeySen);
 				}
-				if(keysPressed.F) {
+				if(keysPressed[settings.keys.camera.zoomOut]) {
 					camera.addZoom(settings.scrollKeySen);
 				}
 
