@@ -223,6 +223,7 @@
 		this.endDrag = function(e) {
 			if(this.drag) {
 				this.drag.element.remove();
+				delete this.drag;
 			}
 		}
 
@@ -231,9 +232,9 @@
 			return (Math.abs(a - x) + Math.abs(b - y) < settings.clickThreshold);
 		}
 
-		this.update = function(e) {
+		this.updateUnits = function(e) {
 			// Clear selection unless you're adding or removing from it
-			if(!e.shiftKey && !e.ctrlKey) {
+			if(!keysPressed.C && !keysPressed.V) {
 				this.clear();
 			}
 
@@ -290,7 +291,7 @@
 						if(center.x < x && center.x > startX && center.y < y && center.y > startY) {
 
 							// Remove from selection with the ctrl key
-							if(e.ctrlKey) {
+							if(keysPressed.V) {
 								this.remove(object);
 
 							// Add to the selection otherwise
@@ -305,7 +306,7 @@
 			if(click) {
 				if(closestClick[0]) {
 					// Remove from selection with the ctrl key
-					if(e.ctrlKey) {
+					if(keysPressed.V) {
 						this.remove(closestClick[0]);
 					
 					// Add to the selection otherwise
@@ -380,7 +381,7 @@
 			if(e.button === 0) {
 				// If a box is still being dragged
 				if(selection.drag) {
-					selection.update(e);
+					selection.updateUnits(e);
 					selection.endDrag(e);
 				}
 
