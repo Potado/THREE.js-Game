@@ -1,4 +1,6 @@
 ;(function() {
+	if (!Detector.webgl) { Detector.addGetWebGLMessage(); return; }
+
 	// Utilities
 	var utils = new function() {
 		this.logger = new Logger();
@@ -6,9 +8,8 @@
 		this.loader = new THREE.JSONLoader();
 
 		this.stats.getDomElement().style.position = 'absolute';
-		this.stats.getDomElement().style.right = '0px';
 		this.stats.getDomElement().style.bottom = '0px';
-
+		this.stats.getDomElement().style.right = '0px';
 
 		$('body')
 			.append(this.logger.domElement)
@@ -54,11 +55,13 @@
 			for(var x = -50; x <= 50; x += 50) {
 				var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial());
 				temp.material.color.setHex(0xFFFFFF);
-				temp.name = 'unit';
 
 				temp.position.x = x;
 				temp.position.y = 0;
 				temp.position.z = 0;
+
+				temp.speed = 1;
+				temp.route = [];
 
 				temp.selectable = true;
 				temp.onselect = function() {
@@ -67,8 +70,6 @@
 				temp.offselect = function() {
 					this.material.color.setHex(0xFFFFFF);
 				}
-
-				temp.floatCounter = 0;
 				sample.add(temp);
 			}
 		});
@@ -138,11 +139,23 @@
 	};
 
 	var commands = new function() {
-		this.move = function(destination) {
+		this.move = function(e, destination) {
 			for(var index = 0; index < selection.list.length; index++) {
-				object = selection.list[index];
+				var object = selection.list[index];
 
-				object.position = destination;
+				if(object.route) {
+
+					if(keysPressed.C) {
+						object.route.push(destination.clone());
+
+					} else {
+						object.route = [destination.clone()];
+					}
+
+					if(object.route.length === 1) {
+						object.movementVector = destination.clone().subSelf(object.position).normalize();
+					}
+				}
 			}
 		}
 	};
@@ -260,9 +273,7 @@
 						), 
 						three.camera
 					);
-					center.y = -center.y; // It doesn't work properly if you don't do this :D
-
-					//$('.hello').css('left', (center.x + 1) / 2 * window.innerWidth).css('top', (center.y - 1) / 2 * window.innerHeight);
+					center.y = -center.y; // Invert y or it doesn't work properly
 
 					if(click) {
 						 // Distance from click to object
@@ -360,8 +371,7 @@
 				//console.log([(point.x + 1) / 2 * window.innerWidth, -(point.y + 1) / 2 * window.innerHeight]);
 
 				//$('.hello').css('left', (point.x + 1) / 2 * window.innerWidth).css('top', (point.y - 1) / 2 * window.innerHeight);
-
-				commands.move(intersect[0].point);
+				commands.move(e, intersect[0].point);
 			}
 		};
 
@@ -447,21 +457,29 @@
 		}
 	})();
 
+	// Render loop
 	(function() {
 		(function renderLoop() {
 
 			for(var index = 0; index < scene.sample.__objects.length; index++) {
-				item = scene.sample.__objects[index];
-				switch(item.name) {
-					case 'unit':
-						item.floatCounter += 0.05;
+				var object = scene.sample.__objects[index];
 
-						//item.position.y = Math.sin(item.floatCounter) * 4;
-						break;
+				// Movement
+				if(object.route && object.speed && object.route.length > 0) {
+					var nextCheckpoint = object.route[0];
 
-					case 'selection':
-						//THREE.AnimationHandler.update(16);
-						break;
+					if(object.position.distanceTo(nextCheckpoint) < 10) {
+						object.route.shift();
+
+						if(object.route.length > 0) {
+							object.movementVector = object.route[0].clone().subSelf(object.position).normalize();
+						}
+					}
+					object.position.addSelf(object.movementVector);
+				}
+
+				// Specifics for different units
+				switch(object.name) {
 				}
 			}
 

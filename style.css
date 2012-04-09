@@ -11,6 +11,7 @@ tr, th, td {
 	border: 1px solid #AAAAAA;
 	text-align: center;
 	min-width: 50px;
+	max-width: 130px;
 	padding: 5px;
 }
 .corner {
