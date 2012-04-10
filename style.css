@@ -7,6 +7,13 @@ body {
 #controls {
 	position: absolute;
 }
+#info {
+	font-family: "Courier New";
+
+	position: absolute;
+	right: 10px;
+	max-width: 50%;
+}
 tr, th, td {
 	border: 1px solid #AAAAAA;
 	text-align: center;
@@ -29,14 +36,4 @@ tr, th, td {
 	filter: alpha(opacity.20); 
 	-khtml-opacity: 0.2;
 	opacity: 0.2; 
-}
-.hello {
-	background: black;
-
-	position: absolute;
-	left: 0px;
-	top: 0px;
-
-	width: 5px;
-	height: 5px;
 }

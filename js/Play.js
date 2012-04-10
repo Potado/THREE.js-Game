@@ -78,21 +78,19 @@
 		sample.add(spotLight);
 		sample.add(fillLight);
 
-		// Load models
 		utils.loader.load('Models/Unit/simpleMesh.js', function(geo) {
 			for(var x = -50; x <= 50; x += 50) {
 				var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Unit/ao.png' ) }));
 				temp.material.color.setHex(0xFFFFFF);
 
-				temp.position.x = x;
+				temp.position.x = x - 50;
 				temp.position.y = 0;
-				temp.position.z = 0;
+				temp.position.z = 20;
 
 				temp.speed = 1;
 				temp.route = [];
 
 				temp.castShadow = true;
-				//temp.receiveShadow = true;
 
 				temp.selectable = true;
 				temp.onselect = function() {
@@ -105,7 +103,7 @@
 			}
 		});
 
-		// Terrain
+		// Visible geometry
 		utils.loader.load('Models/Terrain/terrain.js', function(geo) {
 
 			var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Terrain/ao.png' ) }));
@@ -116,10 +114,34 @@
 
 			sample.add(temp);
 		});
-		utils.loader.load('Models/Terrain/unitMovement.js', function(geo) {
+
+		// Low-poly mesh of only the moveable areas for fast intersection detection
+		utils.loader.load('Models/Terrain/clickCatcher.js', function(geo) {
 
 			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-			temp.class = 'unitMovement';
+			temp.class = 'clickCatcher';
+
+			temp.visible = false;
+
+			sample.add(temp);
+		});
+
+		// Low-poly mesh of the moveable area borders for pathfinding
+		utils.loader.load('Models/Terrain/blocker.js', function(geo) {
+
+			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			temp.class = 'blocker';
+
+			temp.visible = false;
+
+			sample.add(temp);
+		});
+
+		// A netword of edges for the A* algorithm
+		utils.loader.load('Models/Terrain/paths.js', function(geo) {
+
+			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			temp.class = 'paths';
 
 			temp.visible = false;
 
@@ -445,7 +467,7 @@
 						var object = scene.sample.__objects[index];
 
 						// Find the low poly, click catching mesh
-						if(object.class === 'unitMovement') {
+						if(object.class === 'clickCatcher') {
 
 							var intersect = ray.intersectObject(object);
 
@@ -456,6 +478,10 @@
 					}
 				}
 			}
+			
+			// Disable text selection (sometimes selects the render element
+			// and the results aren't pretty)
+			return false;
 		};
 
 		document.onmouseup = function(e) {
