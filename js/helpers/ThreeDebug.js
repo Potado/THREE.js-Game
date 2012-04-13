@@ -31770,6 +31770,9 @@ THREE.JSONLoader.prototype.createModel = function ( json, callback, texturePath 
 	geometry = new THREE.Geometry(),
 	scale = ( json.scale !== undefined ) ? 1.0 / json.scale : 1.0;
 
+
+	
+
 	this.initMaterials( geometry, json.materials, texturePath );
 
 	parseModel( scale );

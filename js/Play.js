@@ -82,10 +82,10 @@
 			for(var x = -50; x <= 50; x += 50) {
 				var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Unit/ao.png' ) }));
 				temp.material.color.setHex(0xFFFFFF);
+				temp.class = 'unit';
 
-				temp.position.x = x - 50;
-				temp.position.y = 0;
-				temp.position.z = 20;
+				temp.groundPosition = new THREE.Vector3(x - 50, 0, 20);
+				temp.offset = new THREE.Vector3(0, 20, 0);
 
 				temp.speed = 1;
 				temp.route = [];
@@ -107,7 +107,7 @@
 		utils.loader.load('Models/Terrain/terrain.js', function(geo) {
 
 			var temp = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: THREE.ImageUtils.loadTexture( 'Models/Terrain/ao.png' ) }));
-			temp.class = '';
+			temp.class = 'terrain';
 
 			temp.castShadow = true;
 			temp.receiveShadow = true;
@@ -117,49 +117,95 @@
 
 		// Low-poly mesh of only the moveable areas for fast intersection detection
 		utils.loader.load('Models/Terrain/clickCatcher.js', function(geo) {
-
-			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-			temp.class = 'clickCatcher';
-
-			temp.visible = false;
-
-			sample.add(temp);
+			sample.clickCatcher = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
 		});
+
 
 		// Low-poly mesh of the moveable area borders for pathfinding
 		utils.loader.load('Models/Terrain/blocker.js', function(geo) {
+			sample.blocker = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
 
-			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-			temp.class = 'blocker';
-
-			temp.visible = false;
-
-			sample.add(temp);
+			sample.blocker.doubleSided = true;
+			sample.add(sample.blocker);
 		});
 
-		// A netword of edges for the A* algorithm
+		// A network of edges for the A* algorithm
 		utils.loader.load('Models/Terrain/paths.js', function(geo) {
 
-			var temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
-			temp.class = 'paths';
+			console.log(geo);
 
-			temp.visible = false;
+			temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
 
-			sample.add(temp);
+			for(var vertex = 0; vertex < geo.vertices.length; vertex++) {
+				for(var i = 0; i < geo.edges[vertex].length; i++) {
+
+					var line = new THREE.Geometry();
+
+					line.vertices.push(geo.vertices[vertex]);
+					line.vertices.push(geo.vertices[geo.edges[vertex][i]]);
+
+					line = new THREE.Line(line);
+					sample.add(line);
+				}
+			}
+
+			// function lineIntersect(a, b) {
+			// 	var ray = new THREE.Ray(a.clone(), a.clone().subSelf(b).normalize());
+			// 	var intersect = ray.intersectObject(sample.blocker);
+
+			// 	console.log(intersect);
+
+			// 	var distanceBetween = a.distanceTo(b);
+			// 	var between = false;
+
+			// 	for(var k = 0; k < intersect.length; k++) {
+			// 		if(intersect[k].distance < distanceBetween) {
+			// 			between = true;
+			// 			break;
+			// 		}
+			// 	}
+
+			// 	return between;
+			// }
+
+			// temp.connections = {};
+
+			// for(var i = 0; i < temp.geometry.vertices.length; i++) {
+			// 	var vertex = temp.geometry.vertices[i];
+			// 	vertex.id = i;
+
+			// 	temp.connections[i] = [];
+
+			// 	for(var j = 0; j < temp.geometry.vertices.length; j++) {
+			// 		var node = temp.geometry.vertices[j];
+			// 		if(vertex !== node) {
+
+			// 			if(!lineIntersect(vertex.position, node.position)) {
+
+			// 				var line = new THREE.Geometry();
+			// 				line.vertices.push(new THREE.Vertex(vertex.clone().position.addSelf(new THREE.Vector3(0, 5, 0))));
+			// 				line.vertices.push(new THREE.Vertex(node.clone().position.addSelf(new THREE.Vector3(0, 5, 0))));
+			// 				sample.add(new THREE.Line(line));
+
+			// 				temp.connections[i].push(node);
+			// 			}
+			// 		}
+			// 	}
+			// }
+
+			sample.paths = temp;
 		});
 
 		utils.loader.load('Models/Grid.js', function(geo) {
 			var temp = new THREE.Mesh(geo, new THREE.MeshBasicMaterial());
 			temp.material.color.setHex(0x999999);
-
-			temp.name = 'grid'
+			temp.class = 'grid'
 			temp.position.x = 0;
-			temp.position.y = -20;
+			temp.position.y = 5;
 			temp.position.z = 0;
 
-			sample.add(temp);
+			//sample.add(temp);
 		});
-
 
 		this.sample = sample;
 	};
@@ -238,16 +284,78 @@
 				var object = selection.list[index];
 
 				if(object.route) {
-
-					if(keysPressed[settings.keys.add]) {
-						object.route.push(destination.clone());
-
-					} else {
-						object.route = [destination.clone()];
+					// Replace current route unless adding to the current selection
+					if(!keysPressed[settings.keys.add]) {
+						object.route = [];
 					}
 
+
+					// A*
+					var begin = object.route[object.route.length - 1] || object.groundPosition;
+
+					// Vertex, f
+					var openList = [];
+
+					for(var j = 0; j < scene.sample.paths.geometry.vertices.length; j++) {
+						vertex = scene.sample.paths.geometry.vertices[j];
+
+						// If there is no obstruction between 'begin' and this vertex
+						if(new THREE.Ray(begin, begin.clone().subSelf(vertex.position).normalize()).intersectObject(scene.sample.blocker).length === 0) {
+							openList.push(vertex);
+						}
+					}
+
+					// Vertex, parent
+					var closedList = [[begin, true]];
+
+					while(true) {
+
+						if(openList.length === 0) {
+							console.log(scene.sample.paths.connections);
+
+							break;
+						}
+
+						// Find the node with the lowest f
+						var lowest = undefined;
+						for(var j = 0; j < openList.length; j++) {
+							if(!lowest || openList[j][1] < lowest[1]) {
+								
+								// Add the list index as the last element so that it can be removed from the openList
+								lowest = openList[j].push(j);
+							}
+						}
+
+						openList.splice(lowest[2], 1);
+						closedList.push([lowest[0], closedList[closedList.length - 1]]);
+
+						var ray = new THREE.Ray(
+							closedList[closedList.length - 1],
+							closedList[closedList.length - 1].position.clone().subSelf(destination).normalize()
+						);
+
+						// If there is no object between this and the destination
+						if(ray.intersectObject(scene.sample.blocker).length === 0) {
+							console.log('break');
+
+							closedList.push([destination, closedList[closedList.length - 1]]);
+							break;
+						}
+
+						// For v in all of the connected vertices
+						for(var v in scene.sample.paths.connections[closedList[closedList.length - 1][0].id]) {
+							
+							// If this vertex is not in openList
+							if(openList.indexOf(v) === -1) {
+								var f = begin.distanceTo(v.position) + v.position.distanceTo(destination);
+
+								openList.push([v, f]);
+							}
+						}
+					}
+					
 					if(object.route.length === 1) {
-						object.movementVector = destination.clone().subSelf(object.position).normalize();
+						object.movementVector = destination.clone().subSelf(object.groundPosition).normalize();
 					}
 				}
 			}
@@ -292,26 +400,28 @@
 		}
 
 		this.updateDrag = function(e) {
-			var x = e.clientX,
-				y = e.clientY;
+			if(this.drag) {
+				var x = e.clientX,
+					y = e.clientY;
 
-			var startX = this.drag.startX,
-				startY = this.drag.startY;
+				var startX = this.drag.startX,
+					startY = this.drag.startY;
 
-			// Make sure that start variables are always smaller
-			if(startX > x) {	
-				var temp = x;
-				x = startX;
-				startX = temp; }
-			if(startY > y) {
-				var temp = y;
-				y = startY;
-				startY = temp; }
+				// Make sure that start variables are always smaller
+				if(startX > x) {	
+					var temp = x;
+					x = startX;
+					startX = temp; }
+				if(startY > y) {
+					var temp = y;
+					y = startY;
+					startY = temp; }
 
-			this.drag.element.css('left', startX)
-							.css('top', startY)
-							.css('width', x - startX)
-							.css('height', y - startY);
+				this.drag.element.css('left', startX)
+								.css('top', startY)
+								.css('width', x - startX)
+								.css('height', y - startY);
+			}	
 		}
 
 		this.endDrag = function(e) {
@@ -457,24 +567,17 @@
 			// Right click
 			} else if(e.button === 2) {
 				if(selection.list.length !== 0) {
+
 					var x = ((e.clientX / window.innerWidth) * 2 - 1),
 						y =  ((e.clientY / window.innerHeight) * 2 - 1); 
 
 					var point = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), three.camera);
 					var ray = new THREE.Ray(three.camera.position, point.subSelf(three.camera.position).normalize());
 
-					for(var index = 0; index < scene.sample.__objects.length; index++) {
-						var object = scene.sample.__objects[index];
+					var intersect = ray.intersectObject(scene.sample.clickCatcher);
 
-						// Find the low poly, click catching mesh
-						if(object.class === 'clickCatcher') {
-
-							var intersect = ray.intersectObject(object);
-
-							if(intersect.length > 0) {
-								commands.move(e, intersect[0].point);
-							}
-						}
+					if(intersect.length > 0) {
+						commands.move(e, intersect[0].point);
 					}
 				}
 			}
@@ -587,20 +690,24 @@
 				if(object.route && object.speed && object.route.length > 0) {
 					var nextCheckpoint = object.route[0];
 
-					if(object.position.distanceTo(nextCheckpoint) < 2) {
+					if(object.groundPosition.distanceTo(nextCheckpoint) < 2) {
 						object.route.shift();
 
 						if(object.route.length > 0) {
-							object.movementVector = object.route[0].clone().subSelf(object.position).normalize();
+							object.movementVector = object.route[0].clone().subSelf(object.groundPosition).normalize();
 						}
 					}
-					object.position.addSelf(object.movementVector);
+					object.groundPosition.addSelf(object.movementVector);
 				}
 
 				// Specifics for different units
 				switch(object.class) {
 					case 'temp':
 						scene.sample.remove(object);
+						break;
+
+					case 'unit':
+						object.position = object.groundPosition.clone().addSelf(object.offset);
 				}
 			}
 
