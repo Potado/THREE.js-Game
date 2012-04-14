@@ -1,9 +1,8 @@
-;(function() {
+;(function wrapper() {
 	if (!Detector.webgl) { Detector.addGetWebGLMessage(); return; }
 
 	// Utilities
-	var utils = new function() {
-		this.logger = new Logger();
+	var utils = new function utils() {
 		this.stats = new Stats();
 		this.loader = new THREE.JSONLoader();
 
@@ -11,14 +10,12 @@
 		this.stats.getDomElement().style.bottom = '0px';
 		this.stats.getDomElement().style.right = '0px';
 
-		$('body')
-			.append(this.logger.domElement)
-			.append(this.stats.getDomElement());
+		$('body').append(this.stats.getDomElement());
 	};
 
 	// Settings
-	var settings = new function() {
-		this.antialias = true;
+	var settings = new function settings() {
+		this.antialias = false;
 
 		this.scrollSen = 30; // Zoom with mouse
 		this.scrollKeySen = 5; // Zoom with keys
@@ -54,9 +51,112 @@
 		};
 	};
 
-	// Scene
-	var scene = new function() {
+	// THREE.js Setup
+	var display = new function display() {
+		var renderer = new THREE.WebGLRenderer({ antialias: settings.antialias });
+		
+		renderer.shadowMapEnabled = true;
+		renderer.shadowMapSoft = true; 
+
+		var projector = new THREE.Projector();
+		var camera = new THREE.PerspectiveCamera(
+			45,
+			window.innerWidth / window.innerHeight,
+			0.1,
+			100000
+		);
+
+		// The location of the point that the camera rotates around
+		camera.pivot = new THREE.Vector3(0, 0, 0);
+
+		// The rotation of the camera around the pivot (radians)
+		camera.view = new THREE.Vector3(0, 0, 0);
+
+		camera.distance = 250;
+		camera.view.z = 0.45;
+
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		$('#draw').attr('width', window.innerWidth).attr('height', window.innerHeight);
+		$('#container').append(renderer.domElement);
+
+		//scene.sample.add(camera);
+
+		window.onresize = function() {
+			$('#draw').attr('width', window.innerWidth).attr('height', window.innerHeight);
+			renderer.setSize(window.innerWidth, window.innerHeight);
+
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+		}
+
+		this.renderer = renderer;
+		this.projector = projector;
+		this.camera = camera;
+
+		this.draw = document.getElementById('draw').getContext('2d');
+		this.draw.objects = [];
+		this.draw.point = function(v) {
+			var x = (v.x + 1) / 2 * window.innerWidth,
+				y = (v.y + 1) / 2 * window.innerHeight;
+
+			this.pointPixels(x, y);
+		};
+
+		this.draw.pointPixels = function(x, y) {
+			this.beginPath();
+			this.arc(x, y, 10, 0, Math.PI*2, true); 
+			this.closePath();
+			this.fill();
+		};
+
+		this.draw.path = function(x) {
+			this.beginPath();
+			this.moveTo(x[0].x, x[0].y);
+			for(var index = 1; index < x.length; index++) {
+				this.lineTo(x[index].x, x[index].y);
+			}
+			this.closePath();
+			this.stroke();
+		};
+
+		// Like path but for 3d coordinates
+		this.draw.path3 = function(x) {
+			this.beginPath();
+
+			var projected = projector.projectVector(x[0].clone(), camera);
+			this.moveTo((projected.x + 1) / 2 * window.innerWidth, (-projected.y + 1) / 2 * window.innerHeight);
+
+			for(var index = 1; index < x.length; index++) {
+				projected = projector.projectVector(x[index].clone(), camera);
+				projected.x = (projected.x + 1) / 2 * window.innerWidth;
+				projected.y = (-projected.y + 1) / 2 * window.innerHeight;
+				this.lineTo(projected.x, projected.y);
+			}
+
+			this.closePath();
+			this.stroke();
+		};
+
+		this.draw.drawObjects = function() {
+			for(var index = 0; index < this.objects.length; index++) {
+				// If it's a path
+				if(this.objects[index].length) {
+					this.path3(this.objects[index]);
+				}
+
+				// If it's a point
+				if(this.objects[index].x) {
+					this.point(this.objects[index]);
+				}
+			}
+		};
+	};
+
+		// Scene
+	var scene = new function scene() {
 		var sample = new THREE.Scene();
+
+		sample.add(display.camera);
 
 		var spotLight = new THREE.DirectionalLight(0xFFFFFF);
 		spotLight.position.x = 300;
@@ -138,13 +238,18 @@
 			for(var vertex = 0; vertex < geo.vertices.length; vertex++) {
 				for(var i = 0; i < geo.edges[vertex].length; i++) {
 
-					var line = new THREE.Geometry();
+					display.draw.objects.push([
+						geo.vertices[vertex].position.clone().setY(10),
+						geo.vertices[geo.edges[vertex][i]].position.clone().setY(10)
+					]);
 
-					line.vertices.push(new THREE.Vertex(geo.vertices[vertex].position.clone().addSelf(new THREE.Vector3(0, 10, 0))));
-					line.vertices.push(new THREE.Vertex(geo.vertices[geo.edges[vertex][i]].position.clone().addSelf(new THREE.Vector3(0, 10, 0))));
+					// var line = new THREE.Geometry();
 
-					line = new THREE.Line(line);
-					sample.add(line);
+					// line.vertices.push(new THREE.Vertex(geo.vertices[vertex].position.clone().setY(10))));
+					// line.vertices.push(new THREE.Vertex(geo.vertices[geo.edges[vertex][i]].position.clone().setY(10))));
+
+					// line = new THREE.Line(line);
+					// sample.add(line);
 				}
 			}
 		});
@@ -157,84 +262,13 @@
 			temp.position.y = 5;
 			temp.position.z = 0;
 
-			//sample.add(temp);
+			// sample.add(temp);
 		});
 
 		this.sample = sample;
 	};
 
-	// THREE.js Setup
-	var display = new function() {
-		var renderer = new THREE.WebGLRenderer({ antialias: settings.antialias });
-		
-		renderer.shadowMapEnabled = true;
-		renderer.shadowMapSoft = true; 
-
-		var projector = new THREE.Projector();
-		var camera = new THREE.PerspectiveCamera(
-			45,
-			window.innerWidth / window.innerHeight,
-			0.1,
-			100000
-		);
-
-		// The location of the point that the camera rotates around
-		camera.pivot = new THREE.Vector3(0, 0, 0);
-
-		// The rotation of the camera around the pivot (radians)
-		camera.view = new THREE.Vector3(0, 0, 0);
-
-		camera.distance = 250;
-		camera.view.z = 0.45;
-
-		renderer.setSize(window.innerWidth, window.innerHeight);
-		$('#draw').attr('width', window.innerWidth).attr('height', window.innerHeight);
-		$('#container').append(renderer.domElement);
-
-		scene.sample.add(camera);
-
-		window.onresize = function() {
-			$('#draw').attr('width', window.innerWidth).attr('height', window.innerHeight);
-			renderer.setSize(window.innerWidth, window.innerHeight);
-
-			camera.aspect = window.innerWidth / window.innerHeight;
-			camera.updateProjectionMatrix();
-		}
-
-		this.renderer = renderer;
-		this.projector = projector;
-		this.camera = camera;
-
-		this.draw = document.getElementById('draw').getContext('2d');
-	};
-
-	var misc = new function() {
-		// Work in progress
-		this.lineToGeometry = function(line) {
-			var geo = new THREE.Geometry();
-			geo.dynamic = true;
-
-			for(var index = 1; index < line.vertices.length; index++) {
-				var vertexA = line.vertices[index],
-					vertexB = line.vertices[index - 1];
-
-				var face = new THREE.Face4(
-					vertexA,
-					vertexA.clone().position.addSelf(new THREE.Vector3(10, 0, 10)),
-					vertexB,
-					vertexB.clone().position.addSelf(new THREE.Vector3(10, 0, 10))
-				);
-
-				geo.faces.push(face);
-				geo.vertices.push(vertexA);
-				geo.vertices.push(vertexB);
-				geo.vertices.push(vertexA.clone().position.addSelf(new THREE.Vector3(10, 0, 10)));
-				geo.vertices.push(vertexB.clone().position.addSelf(new THREE.Vector3(10, 0, 10)));
-			}
-
-			return geo;
-		};
-
+	var misc = new function misc() {
 		this.drawBox = function(a) {
 			var box = new THREE.Mesh(new THREE.CubeGeometry(3, 3, 3), new THREE.MeshBasicMaterial({ color: 0x000000 }));
 			box.position = a.clone();
@@ -273,7 +307,7 @@
 		}
 	};
 
-	var commands = new function() {
+	var commands = new function commands() {
 		this.move = function(e, destination) {
 			for(var index = 0; index < selection.list.length; index++) {
 				var object = selection.list[index];
@@ -297,12 +331,12 @@
 					}
 
 					// Form connections between 'begin' and the other nodes
-					for(var j = 0; j < scene.sample.paths.vertices.length; j++) {
-						vertex = scene.sample.paths.vertices[j];
+					for(var j = 0; j < scene.sample.paths.nodes.length; j++) {
+						var node = scene.sample.paths.nodes[j];
 
 						// If there is no obstruction between 'begin' and this node
-						if(!misc.intersectLineSegment(begin.clone(), vertex.position.clone())) {
-							openList.push([j, false, getF(vertex.position)]);
+						if(!misc.intersectLineSegment(begin.clone(), node.clone())) {
+							openList.push([j, false, getF(node)]);
 						}
 					}
 
@@ -380,7 +414,7 @@
 	};
 
 	// Selected units/buildings
-	var selection = new function() {
+	var selection = new function selection() {
 		this.list = [];
 
 		// Adds array to the selection
@@ -540,7 +574,7 @@
 	};
 	
 	// Camera Controls
-	var camera = new function() {
+	var camera = new function camera() {
 		this.addViewRotation = function(across, up) {
 			// Add rotation around pivot
 			display.camera.view.y += across * settings.rotSen;
@@ -560,11 +594,53 @@
 		this.addZoom = function(difference) {
 			display.camera.distance += difference;
 			display.camera.view.z += difference * 0.005;
-		}
+		};
+
+		this.updatePosition = function() {
+			if(keysPressed[settings.keys.camera.forward]) {
+				this.moveView(0, settings.panKeySen);
+			}
+			if(keysPressed[settings.keys.camera.backward]) {
+				this.moveView(0, -settings.panKeySen);
+			}
+			if(keysPressed[settings.keys.camera.left]) {
+				this.moveView(settings.panKeySen, 0);
+			}
+			if(keysPressed[settings.keys.camera.right]) {
+				this.moveView(-settings.panKeySen, 0);
+			}
+		};
+
+		this.updateRotation = function() {
+			if(keysPressed[settings.keys.camera.rotateLeft]) {
+				this.addViewRotation(-settings.rotKeySen, 0);
+			}
+			if(keysPressed[settings.keys.camera.rotateRight]) {
+				this.addViewRotation(settings.rotKeySen, 0);
+			}
+			if(keysPressed[settings.keys.camera.zoomIn]) {
+				this.addZoom(-settings.scrollKeySen);
+			}
+			if(keysPressed[settings.keys.camera.zoomOut]) {
+				this.addZoom(settings.scrollKeySen);
+			}
+
+			if(display.camera.view.z > 1.7) { display.camera.view.z = 1.7; }
+			if(display.camera.view.z < 0.2) { display.camera.view.z = 0.2; }
+
+			if(display.camera.distance < 200) { display.camera.distance = 200; }
+			if(display.camera.distance > 500) { display.camera.distance = 500; }
+
+			display.camera.position.x = display.camera.pivot.x + (Math.sin(display.camera.view.y) * display.camera.distance);
+			display.camera.position.y = display.camera.pivot.y + (Math.sin(display.camera.view.z) * display.camera.distance);
+			display.camera.position.z = display.camera.pivot.z + (Math.cos(display.camera.view.y) * display.camera.distance);
+
+			display.camera.lookAt(display.camera.pivot);
+		};
 	};
 
 	// Bind camera to keystrokes
-	(function() {
+	(function keystrokes() {
 		mouseVars = new Object();
 		mouseVars.down = false;
 		mouseVars.lastX = false;
@@ -687,13 +763,8 @@
 	})();
 
 	// Render loop
-	(function() {
-
+	(function main() {
 		(function renderLoop() {
-
-			display.draw.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
-			
 
 			for(var index = 0; index < scene.sample.__objects.length; index++) {
 				var object = scene.sample.__objects[index];
@@ -723,53 +794,16 @@
 				}
 			}
 
-			// Update camera position
-			(function() {
-				if(keysPressed[settings.keys.camera.forward]) {
-					camera.moveView(0, settings.panKeySen);
-				}
-				if(keysPressed[settings.keys.camera.backward]) {
-					camera.moveView(0, -settings.panKeySen);
-				}
-				if(keysPressed[settings.keys.camera.left]) {
-					camera.moveView(settings.panKeySen, 0);
-				}
-				if(keysPressed[settings.keys.camera.right]) {
-					camera.moveView(-settings.panKeySen, 0);
-				}
-			})();
-			
-
-			// Update camera rotation
-			(function() {
-				if(keysPressed[settings.keys.camera.rotateLeft]) {
-					camera.addViewRotation(-settings.rotKeySen, 0);
-				}
-				if(keysPressed[settings.keys.camera.rotateRight]) {
-					camera.addViewRotation(settings.rotKeySen, 0);
-				}
-				if(keysPressed[settings.keys.camera.zoomIn]) {
-					camera.addZoom(-settings.scrollKeySen);
-				}
-				if(keysPressed[settings.keys.camera.zoomOut]) {
-					camera.addZoom(settings.scrollKeySen);
-				}
-
-				if(display.camera.view.z > 1.7) { display.camera.view.z = 1.7; }
-				if(display.camera.view.z < 0.2) { display.camera.view.z = 0.2; }
-
-				if(display.camera.distance < 200) { display.camera.distance = 200; }
-				if(display.camera.distance > 500) { display.camera.distance = 500; }
-
-				display.camera.position.x = display.camera.pivot.x + (Math.sin(display.camera.view.y) * display.camera.distance);
-				display.camera.position.y = display.camera.pivot.y + (Math.sin(display.camera.view.z) * display.camera.distance);
-				display.camera.position.z = display.camera.pivot.z + (Math.cos(display.camera.view.y) * display.camera.distance);
-
-				display.camera.lookAt(display.camera.pivot);
-			})();      
+			camera.updatePosition();
+			camera.updateRotation();   
 
 			utils.stats.update();
 			display.renderer.render(scene.sample, display.camera);
+
+			// Do this stuff AFTER rendering to eliminate lag
+			display.draw.clearRect(0, 0, window.innerWidth, window.innerHeight);
+			display.draw.drawObjects();
+
 			requestAnimationFrame(renderLoop);
 		})();
 	})();
