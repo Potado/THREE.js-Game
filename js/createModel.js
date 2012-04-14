@@ -1,3 +1,4 @@
+// 99% of this was taken from THREE.js source
 THREE.JSONLoader.prototype.createModel = function ( json, callback, texturePath ) {
 
 	var scope = this,
@@ -5,11 +6,23 @@ THREE.JSONLoader.prototype.createModel = function ( json, callback, texturePath 
 	scale = ( json.scale !== undefined ) ? 1.0 / json.scale : 1.0;
 
 
-	// A quick hack to add the custom 'edges' attribute for A* paths
-	if(json.edges) {
-		geometry.edges = json.edges;
+	// A quick hack to add the custom attributes for A* paths
+	geometry.edges = json.edges ? json.edges : [];
+
+	// Create a custom list of nodes because the built-in vertices have weird ordering
+	if(json.nodes) {
+		
+
+		geometry.nodes = [];
+
+		for(var index = 0; index < json.nodes.length; index++) {
+			var node = json.nodes[index];
+
+			geometry.nodes.push(new THREE.Vector3(node[0], node[1], node[2]).multiplyScalar(scale));
+		}
 	}
 
+	// Everything else is exactly the same
 
 	this.initMaterials( geometry, json.materials, texturePath );
 

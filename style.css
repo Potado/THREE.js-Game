@@ -14,12 +14,22 @@ body {
 	right: 10px;
 	max-width: 50%;
 }
+canvas {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+}
+#draw {
+	z-index: 1;
+}
 tr, th, td {
 	border: 1px solid #AAAAAA;
 	text-align: center;
 	min-width: 50px;
 	max-width: 130px;
 	padding: 5px;
+
+	z-index: 2;
 }
 .corner {
 	border: none;

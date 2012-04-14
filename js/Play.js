@@ -18,6 +18,8 @@
 
 	// Settings
 	var settings = new function() {
+		this.antialias = true;
+
 		this.scrollSen = 30; // Zoom with mouse
 		this.scrollKeySen = 5; // Zoom with keys
 
@@ -131,69 +133,20 @@
 
 		// A network of edges for the A* algorithm
 		utils.loader.load('Models/Terrain/paths.js', function(geo) {
-
-			console.log(geo);
-
-			temp = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
+			sample.paths = geo;
 
 			for(var vertex = 0; vertex < geo.vertices.length; vertex++) {
 				for(var i = 0; i < geo.edges[vertex].length; i++) {
 
 					var line = new THREE.Geometry();
 
-					line.vertices.push(geo.vertices[vertex]);
-					line.vertices.push(geo.vertices[geo.edges[vertex][i]]);
+					line.vertices.push(new THREE.Vertex(geo.vertices[vertex].position.clone().addSelf(new THREE.Vector3(0, 10, 0))));
+					line.vertices.push(new THREE.Vertex(geo.vertices[geo.edges[vertex][i]].position.clone().addSelf(new THREE.Vector3(0, 10, 0))));
 
 					line = new THREE.Line(line);
 					sample.add(line);
 				}
 			}
-
-			// function lineIntersect(a, b) {
-			// 	var ray = new THREE.Ray(a.clone(), a.clone().subSelf(b).normalize());
-			// 	var intersect = ray.intersectObject(sample.blocker);
-
-			// 	console.log(intersect);
-
-			// 	var distanceBetween = a.distanceTo(b);
-			// 	var between = false;
-
-			// 	for(var k = 0; k < intersect.length; k++) {
-			// 		if(intersect[k].distance < distanceBetween) {
-			// 			between = true;
-			// 			break;
-			// 		}
-			// 	}
-
-			// 	return between;
-			// }
-
-			// temp.connections = {};
-
-			// for(var i = 0; i < temp.geometry.vertices.length; i++) {
-			// 	var vertex = temp.geometry.vertices[i];
-			// 	vertex.id = i;
-
-			// 	temp.connections[i] = [];
-
-			// 	for(var j = 0; j < temp.geometry.vertices.length; j++) {
-			// 		var node = temp.geometry.vertices[j];
-			// 		if(vertex !== node) {
-
-			// 			if(!lineIntersect(vertex.position, node.position)) {
-
-			// 				var line = new THREE.Geometry();
-			// 				line.vertices.push(new THREE.Vertex(vertex.clone().position.addSelf(new THREE.Vector3(0, 5, 0))));
-			// 				line.vertices.push(new THREE.Vertex(node.clone().position.addSelf(new THREE.Vector3(0, 5, 0))));
-			// 				sample.add(new THREE.Line(line));
-
-			// 				temp.connections[i].push(node);
-			// 			}
-			// 		}
-			// 	}
-			// }
-
-			sample.paths = temp;
 		});
 
 		utils.loader.load('Models/Grid.js', function(geo) {
@@ -211,8 +164,8 @@
 	};
 
 	// THREE.js Setup
-	var three = new function() {
-		var renderer = new THREE.WebGLRenderer({ antialias: true });
+	var display = new function() {
+		var renderer = new THREE.WebGLRenderer({ antialias: settings.antialias });
 		
 		renderer.shadowMapEnabled = true;
 		renderer.shadowMapSoft = true; 
@@ -228,19 +181,21 @@
 		// The location of the point that the camera rotates around
 		camera.pivot = new THREE.Vector3(0, 0, 0);
 
-		// The rotation of the camera around the pivot (rads)
+		// The rotation of the camera around the pivot (radians)
 		camera.view = new THREE.Vector3(0, 0, 0);
 
 		camera.distance = 250;
 		camera.view.z = 0.45;
 
-		renderer.setSize(window.innerWidth, window.innerHeight - 5);
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		$('#draw').attr('width', window.innerWidth).attr('height', window.innerHeight);
 		$('#container').append(renderer.domElement);
 
 		scene.sample.add(camera);
 
-		onresize = function() {
-			renderer.setSize(window.innerWidth, window.innerHeight - 5);
+		window.onresize = function() {
+			$('#draw').attr('width', window.innerWidth).attr('height', window.innerHeight);
+			renderer.setSize(window.innerWidth, window.innerHeight);
 
 			camera.aspect = window.innerWidth / window.innerHeight;
 			camera.updateProjectionMatrix();
@@ -249,9 +204,12 @@
 		this.renderer = renderer;
 		this.projector = projector;
 		this.camera = camera;
+
+		this.draw = document.getElementById('draw').getContext('2d');
 	};
 
 	var misc = new function() {
+		// Work in progress
 		this.lineToGeometry = function(line) {
 			var geo = new THREE.Geometry();
 			geo.dynamic = true;
@@ -276,6 +234,43 @@
 
 			return geo;
 		};
+
+		this.drawBox = function(a) {
+			var box = new THREE.Mesh(new THREE.CubeGeometry(3, 3, 3), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+			box.position = a.clone();
+			scene.sample.add(box);
+		};
+
+		this.drawLine = function(a, b) {
+			var line = new THREE.Geometry();
+
+			line.vertices.push(new THREE.Vertex(a));
+			line.vertices.push(new THREE.Vertex(b));
+
+			scene.sample.add(new THREE.Line(line));
+		};
+
+		this.intersectLineSegment = function(a, b) {
+			var distance = a.distanceTo(b);
+			var ray = new THREE.Ray(a, a.clone().subSelf(b).normalize().negate());
+			var intersects = ray.intersectObject(scene.sample.blocker);
+			var between = false;
+
+
+			for(var i = 0; i < intersects.length; i++) {
+				// this.drawLine(a.clone().setY(10), b.clone().setY(10));
+				// this.drawBox(intersects[i].point.clone().setY(10));
+
+				
+
+				if(a.distanceTo(intersects[i].point) < distance) {
+					//console.log([a.distanceTo(intersects[i].point), distance])
+					between = true;
+				}
+			}
+
+			return between;
+		}
 	};
 
 	var commands = new function() {
@@ -289,69 +284,91 @@
 						object.route = [];
 					}
 
-
-					// A*
 					var begin = object.route[object.route.length - 1] || object.groundPosition;
 
-					// Vertex, f
+					// [Vertex, parent, f], ...
 					var openList = [];
 
-					for(var j = 0; j < scene.sample.paths.geometry.vertices.length; j++) {
-						vertex = scene.sample.paths.geometry.vertices[j];
+					// [Vertex, parent], ...
+					var closedList = [];
 
-						// If there is no obstruction between 'begin' and this vertex
-						if(new THREE.Ray(begin, begin.clone().subSelf(vertex.position).normalize()).intersectObject(scene.sample.blocker).length === 0) {
-							openList.push(vertex);
+					function getF(point) {
+						return begin.distanceTo(point) + point.distanceTo(destination);
+					}
+
+					// Form connections between 'begin' and the other nodes
+					for(var j = 0; j < scene.sample.paths.vertices.length; j++) {
+						vertex = scene.sample.paths.vertices[j];
+
+						// If there is no obstruction between 'begin' and this node
+						if(!misc.intersectLineSegment(begin.clone(), vertex.position.clone())) {
+							openList.push([j, false, getF(vertex.position)]);
 						}
 					}
 
-					// Vertex, parent
-					var closedList = [[begin, true]];
+					// return;
 
-					while(true) {
+					var maxIterations = 1;
+					var currentIt = 0;
 
-						if(openList.length === 0) {
-							console.log(scene.sample.paths.connections);
-
-							break;
-						}
+					// Main loop
+					while(currentIt < maxIterations && openList.length > 0) {
+						currentIt++;
 
 						// Find the node with the lowest f
 						var lowest = undefined;
 						for(var j = 0; j < openList.length; j++) {
-							if(!lowest || openList[j][1] < lowest[1]) {
-								
-								// Add the list index as the last element so that it can be removed from the openList
-								lowest = openList[j].push(j);
+							if(!lowest || openList[j][2] < lowest[1]) {
+
+								// [Vertex, parent, f, index]
+								lowest = openList[j];
+								lowest.push(j);
 							}
 						}
 
-						openList.splice(lowest[2], 1);
-						closedList.push([lowest[0], closedList[closedList.length - 1]]);
+						// Remove the node with the lowest f from the open list
+						openList.splice(lowest[3], 1);
 
-						var ray = new THREE.Ray(
-							closedList[closedList.length - 1],
-							closedList[closedList.length - 1].position.clone().subSelf(destination).normalize()
-						);
+						// And add it to the closed list
+						closedList.push([lowest[0], lowest[1]]);
 
-						// If there is no object between this and the destination
-						if(ray.intersectObject(scene.sample.blocker).length === 0) {
-							console.log('break');
+						// For every connected node to the most recently added
+						for(var index = 0; index < scene.sample.paths.edges[lowest[0]].length; index++) {
+							var id = scene.sample.paths.edges[lowest[0]][index];
 
-							closedList.push([destination, closedList[closedList.length - 1]]);
-							break;
+							console.log(scene.sample.paths.nodes[id]);
+
+							misc.drawBox(scene.sample.paths.nodes[id]);
 						}
 
-						// For v in all of the connected vertices
-						for(var v in scene.sample.paths.connections[closedList[closedList.length - 1][0].id]) {
+						//console.log(scene.sample.paths);
+
+
+						console.log("----------------------");
+
+					// 	var ray = new THREE.Ray(
+					// 		closedList[closedList.length - 1][0],
+					// 		closedList[closedList.length - 1][0].position.clone().subSelf(destination).normalize()
+					// 	);
+
+					// 	// If there is no object between this and the destination
+					// 	if(ray.intersectObject(scene.sample.blocker).length === 0) {
+					// 		console.log('break');
+
+					// 		closedList.push([destination, closedList[closedList.length - 1]]);
+					// 		break;
+					// 	}
+
+					// 	// For v in all of the connected vertices of the new node
+					// 	for(var v in scene.sample.paths.connections[closedList[closedList.length - 1][0].id]) {
 							
-							// If this vertex is not in openList
-							if(openList.indexOf(v) === -1) {
-								var f = begin.distanceTo(v.position) + v.position.distanceTo(destination);
+					// 		// If this vertex is not in openList
+					// 		if(openList.indexOf(v) === -1) {
+					// 			var f = begin.distanceTo(v.position) + v.position.distanceTo(destination);
 
-								openList.push([v, f]);
-							}
-						}
+					// 			openList.push([v, f]);
+					// 		}
+					// 	}
 					}
 					
 					if(object.route.length === 1) {
@@ -470,13 +487,13 @@
 				if(object.selectable) {
 
 					// Get the object's center on the screen
-					var center = three.projector.projectVector(
+					var center = display.projector.projectVector(
 						new THREE.Vector3(
 							object.position.x, 
 							object.position.y,
 							object.position.z
 						), 
-						three.camera
+						display.camera
 					);
 					center.y = -center.y; // Invert y or it doesn't work properly
 
@@ -526,23 +543,23 @@
 	var camera = new function() {
 		this.addViewRotation = function(across, up) {
 			// Add rotation around pivot
-			three.camera.view.y += across * settings.rotSen;
-			three.camera.view.z -= up * settings.rotSen;
+			display.camera.view.y += across * settings.rotSen;
+			display.camera.view.z -= up * settings.rotSen;
 		};
 
 		this.moveView = function(leftAmount, upAmount) {
 			// Get vector for moving up/left
-			var up = new THREE.Vector3(Math.cos(three.camera.view.y - Math.PI / 2), 0, -Math.sin(three.camera.view.y - Math.PI / 2)),
-				left = new THREE.Vector3(Math.cos(three.camera.view.y), 0, -Math.sin(three.camera.view.y));
+			var up = new THREE.Vector3(Math.cos(display.camera.view.y - Math.PI / 2), 0, -Math.sin(display.camera.view.y - Math.PI / 2)),
+				left = new THREE.Vector3(Math.cos(display.camera.view.y), 0, -Math.sin(display.camera.view.y));
 
 			// Multiply up/left vectors by the difference in mouse movement
-			three.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.panSen * three.camera.distance));
-			three.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.panSen * three.camera.distance));
+			display.camera.pivot.subSelf(up.multiplyScalar(upAmount * settings.panSen * display.camera.distance));
+			display.camera.pivot.subSelf(left.multiplyScalar(leftAmount * settings.panSen * display.camera.distance));
 		};
 
 		this.addZoom = function(difference) {
-			three.camera.distance += difference;
-			three.camera.view.z += difference * 0.005;
+			display.camera.distance += difference;
+			display.camera.view.z += difference * 0.005;
 		}
 	};
 
@@ -571,8 +588,8 @@
 					var x = ((e.clientX / window.innerWidth) * 2 - 1),
 						y =  ((e.clientY / window.innerHeight) * 2 - 1); 
 
-					var point = three.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), three.camera);
-					var ray = new THREE.Ray(three.camera.position, point.subSelf(three.camera.position).normalize());
+					var point = display.projector.unprojectVector(new THREE.Vector3(x, -y, 0.5), display.camera);
+					var ray = new THREE.Ray(display.camera.position, point.subSelf(display.camera.position).normalize());
 
 					var intersect = ray.intersectObject(scene.sample.clickCatcher);
 
@@ -621,7 +638,7 @@
 					var x = ((e.clientX / window.innerWidth) * 2 - 1) - ((mouseVars.lastX / window.innerWidth) * 2 - 1),
 						y =  ((e.clientY / window.innerHeight) * 2 - 1) - ((mouseVars.lastY / window.innerHeight) * 2 - 1);
 
-					camera.moveView(x * three.camera.aspect, y);
+					camera.moveView(x * display.camera.aspect, y);
 
 				// Rotate Screen
 				} else if(keysPressed[settings.keys.camera.rotateMouse]) {
@@ -672,16 +689,11 @@
 	// Render loop
 	(function() {
 
-		var geo = new THREE.Geometry();
-		geo.vertices.push(new THREE.Vertex(new THREE.Vector3(-10, 0, 0)));
-	    geo.vertices.push(new THREE.Vertex(new THREE.Vector3(0, 10, 0)));
-	    geo.vertices.push(new THREE.Vertex(new THREE.Vector3(10, 0, 0)));
-
-
-
-	   	//scene.sample.add(new THREE.Mesh(misc.lineToGeometry(geo)));
-
 		(function renderLoop() {
+
+			display.draw.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+			
 
 			for(var index = 0; index < scene.sample.__objects.length; index++) {
 				var object = scene.sample.__objects[index];
@@ -743,21 +755,21 @@
 					camera.addZoom(settings.scrollKeySen);
 				}
 
-				if(three.camera.view.z > 1.7) { three.camera.view.z = 1.7; }
-				if(three.camera.view.z < 0.2) { three.camera.view.z = 0.2; }
+				if(display.camera.view.z > 1.7) { display.camera.view.z = 1.7; }
+				if(display.camera.view.z < 0.2) { display.camera.view.z = 0.2; }
 
-				if(three.camera.distance < 200) { three.camera.distance = 200; }
-				if(three.camera.distance > 500) { three.camera.distance = 500; }
+				if(display.camera.distance < 200) { display.camera.distance = 200; }
+				if(display.camera.distance > 500) { display.camera.distance = 500; }
 
-				three.camera.position.x = three.camera.pivot.x + (Math.sin(three.camera.view.y) * three.camera.distance);
-				three.camera.position.y = three.camera.pivot.y + (Math.sin(three.camera.view.z) * three.camera.distance);
-				three.camera.position.z = three.camera.pivot.z + (Math.cos(three.camera.view.y) * three.camera.distance);
+				display.camera.position.x = display.camera.pivot.x + (Math.sin(display.camera.view.y) * display.camera.distance);
+				display.camera.position.y = display.camera.pivot.y + (Math.sin(display.camera.view.z) * display.camera.distance);
+				display.camera.position.z = display.camera.pivot.z + (Math.cos(display.camera.view.y) * display.camera.distance);
 
-				three.camera.lookAt(three.camera.pivot);
+				display.camera.lookAt(display.camera.pivot);
 			})();      
 
 			utils.stats.update();
-			three.renderer.render(scene.sample, three.camera);
+			display.renderer.render(scene.sample, display.camera);
 			requestAnimationFrame(renderLoop);
 		})();
 	})();
