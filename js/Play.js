@@ -15,19 +15,19 @@
 
 	// Settings
 	var settings = new function settings() {
-		this.antialias = false;
+		this.antialias = true;
 
-		this.scrollSen = 30; // Zoom with mouse
-		this.scrollKeySen = 5; // Zoom with keys
+		this.scrollSen = 6; // Zoom with mouse wheel
+		this.scrollKeySen = 1; // Zoom with keys
 
-		this.rotSen = 0.005; // Rotation with mouse
-		this.rotKeySen = 7; // Rotation with keys
+		this.rotSen = 0.0045; // Rotation with mouse
+		this.rotKeySen = 8.5; // Rotation with keys
 
 		this.panSen = 0.6; // Pan with mouse
 		this.panKeySen = 0.03; // Pan with keys
 
 		this.clickThreshold = 50; // Differentiates between dragging and clicking
-		this.selectThreshold = 100; // Closest distance that an object can be selected
+		this.selectThreshold = 1000; // Closest distance that an object can be selected
 
 		// Keyboard shortcuts
 		this.keys = new function() {
@@ -96,60 +96,94 @@
 		this.draw = document.getElementById('draw').getContext('2d');
 		this.draw.objects = [];
 		this.draw.point = function(v) {
-			var x = (v.x + 1) / 2 * window.innerWidth,
-				y = (v.y + 1) / 2 * window.innerHeight;
+			var v = projector.projectVector(v, camera);
 
-			this.pointPixels(x, y);
+			v.x = (v.x + 1) / 2 * window.innerWidth;
+			v.y = (-v.y + 1) / 2 * window.innerHeight;
+
+			this.pointPixels(v.x, v.y);
 		};
 
 		this.draw.pointPixels = function(x, y) {
 			this.beginPath();
-			this.arc(x, y, 10, 0, Math.PI*2, true); 
+			this.arc(x, y, 5, 0, Math.PI*2, true); 
 			this.closePath();
 			this.fill();
 		};
 
-		this.draw.path = function(x) {
-			this.beginPath();
-			this.moveTo(x[0].x, x[0].y);
-			for(var index = 1; index < x.length; index++) {
-				this.lineTo(x[index].x, x[index].y);
+		this.draw.line = function(path) {
+			// If the line intersects with the viewport
+			if(!(
+			(path[0].x > window.innerWidth && path[1].x > window.innerWidth)
+			|| (path[0].x < 0 && path[1].x < 0)
+			|| (path[0].y > window.innerHeight && path[1].y > window.innerHeight)
+			|| (path[0].y < 0 && path[1].y < 0))
+			) {
+
+				// this.lineWidth = 0.5;
+				// this.beginPath();
+
+				// // If the first point (path[0]) is outside the viewport
+				// // if(path[0].x > window.innerWidth || path[0].x < 0 || path[0].y > window.innerHeight || path[0].y < 0) {
+				// if(path[0].x < 0) {
+				// 	toLeft = -path[0].x;
+				// } else if(path[0].x > window.innerWidth) {
+					
+				// }
+
+
+				// this.moveTo(x[0].x, x[0].y);
+				// for(var index = 1; index < x.length; index++) {
+				// 	this.lineTo(x[index].x, x[index].y);
+				// }
+				// this.closePath();
+				// this.stroke();
 			}
-			this.closePath();
-			this.stroke();
 		};
 
-		// Like path but for 3d coordinates
-		this.draw.path3 = function(x) {
-			this.beginPath();
+		// Like Skyrim but without dragons
+		this.draw.line3 = function(x) {
+			var projectedA = projector.projectVector(x[0].clone(), camera);
+			projectedA.x = (projectedA.x + 1) / 2 * window.innerWidth;
+			projectedA.y = (-projectedA.y + 1) / 2 * window.innerHeight;
 
-			var projected = projector.projectVector(x[0].clone(), camera);
-			this.moveTo((projected.x + 1) / 2 * window.innerWidth, (-projected.y + 1) / 2 * window.innerHeight);
+			var projectedB = projector.projectVector(x[1].clone(), camera);
+			projectedB.x = (projectedB.x + 1) / 2 * window.innerWidth;
+			projectedB.y = (-projectedB.y + 1) / 2 * window.innerHeight;
 
-			for(var index = 1; index < x.length; index++) {
-				projected = projector.projectVector(x[index].clone(), camera);
-				projected.x = (projected.x + 1) / 2 * window.innerWidth;
-				projected.y = (-projected.y + 1) / 2 * window.innerHeight;
-				this.lineTo(projected.x, projected.y);
-			}
+			// if(projectedA.y > window.innerHeight) {
+			// 	return;
+			// }
+			// if(projectedB.y > window.innerHeight) {
+			// 	return;
+			// }
 
-			this.closePath();
-			this.stroke();
+			// this.moveTo(projectedA.x, projectedA.y);
+			// this.lineTo(projectedB.x, projectedB.y);
+
+			this.line([projectedA, projectedB]);
 		};
 
-		this.draw.drawObjects = function() {
+		this.draw.update = function() {
+			this.clearRect(0, 0, window.innerWidth, window.innerHeight);
+			
 			for(var index = 0; index < this.objects.length; index++) {
+		
 				// If it's a path
-				if(this.objects[index].length) {
-					this.path3(this.objects[index]);
-				}
+				if(this.objects[index].length && this.objects[index].length === 2) {
+					this.line3(this.objects[index]);
+
 
 				// If it's a point
-				if(this.objects[index].x) {
-					this.point(this.objects[index]);
+				} else if(this.objects[index].x !== undefined) {
+					this.point(this.objects[index].clone());
+				
+				// If it's a string
+				} else if(typeof this.objects[index][0] === 'string') {
+					
 				}
 			}
-		};
+		}
 	};
 
 		// Scene
@@ -192,6 +226,9 @@
 				temp.speed = 1;
 				temp.route = [];
 
+				// For selection
+				temp.radius = 5;
+
 				temp.castShadow = true;
 
 				temp.selectable = true;
@@ -228,7 +265,7 @@
 			sample.blocker = new THREE.Mesh(geo, new THREE.MeshNormalMaterial());
 
 			sample.blocker.doubleSided = true;
-			sample.add(sample.blocker);
+			// sample.add(sample.blocker);
 		});
 
 		// A network of edges for the A* algorithm
@@ -262,7 +299,7 @@
 			temp.position.y = 5;
 			temp.position.z = 0;
 
-			// sample.add(temp);
+			sample.add(temp);
 		});
 
 		this.sample = sample;
@@ -304,7 +341,7 @@
 			}
 
 			return between;
-		}
+		};
 	};
 
 	var commands = new function commands() {
@@ -319,6 +356,9 @@
 					}
 
 					var begin = object.route[object.route.length - 1] || object.groundPosition;
+					display.draw.objects.push(begin);
+
+
 
 					// [Vertex, parent, f], ...
 					var openList = [];
@@ -331,59 +371,62 @@
 					}
 
 					// Form connections between 'begin' and the other nodes
-					for(var j = 0; j < scene.sample.paths.nodes.length; j++) {
-						var node = scene.sample.paths.nodes[j];
+					for(var j = 0; j < scene.sample.paths.vertices.length; j++) {
+						var vertex = scene.sample.paths.vertices[j];
 
 						// If there is no obstruction between 'begin' and this node
-						if(!misc.intersectLineSegment(begin.clone(), node.clone())) {
-							openList.push([j, false, getF(node)]);
+						if(!misc.intersectLineSegment(begin.clone(), vertex.position.clone())) {
+							// console.log(':D');
+
+							openList.push([j, false, getF(vertex.position)]);
+							// display.draw.objects.push(vertex.position);
 						}
 					}
 
 					// return;
 
-					var maxIterations = 1;
-					var currentIt = 0;
+					// var maxIterations = 1;
+					// var currentIt = 0;
 
-					// Main loop
-					while(currentIt < maxIterations && openList.length > 0) {
-						currentIt++;
+					// // Main loop
+					// while(currentIt < maxIterations && openList.length > 0) {
+					// 	currentIt++;
 
-						// Find the node with the lowest f
-						var lowest = undefined;
-						for(var j = 0; j < openList.length; j++) {
-							if(!lowest || openList[j][2] < lowest[1]) {
+					// 	// Find the node with the lowest f
+					// 	var lowest = undefined;
+					// 	for(var j = 0; j < openList.length; j++) {
+					// 		if(!lowest || openList[j][2] < lowest[1]) {
 
-								// [Vertex, parent, f, index]
-								lowest = openList[j];
-								lowest.push(j);
-							}
-						}
+					// 			// [Vertex, parent, f, index]
+					// 			lowest = openList[j];
+					// 			lowest.push(j);
+					// 		}
+					// 	}
 
-						// Remove the node with the lowest f from the open list
-						openList.splice(lowest[3], 1);
+					// 	// Remove the node with the lowest f from the open list
+					// 	openList.splice(lowest[3], 1);
 
-						// And add it to the closed list
-						closedList.push([lowest[0], lowest[1]]);
+					// 	// And add it to the closed list
+					// 	closedList.push([lowest[0], lowest[1]]);
 
-						// For every connected node to the most recently added
-						for(var index = 0; index < scene.sample.paths.edges[lowest[0]].length; index++) {
-							var id = scene.sample.paths.edges[lowest[0]][index];
+					// 	// For every connected node to the most recently added
+					// 	for(var index = 0; index < scene.sample.paths.edges[lowest[0]].length; index++) {
+					// 		var id = scene.sample.paths.edges[lowest[0]][index];
 
-							console.log(scene.sample.paths.nodes[id]);
+					// 		console.log(scene.sample.paths.nodes[id]);
 
-							misc.drawBox(scene.sample.paths.nodes[id]);
-						}
+					// 		misc.drawBox(scene.sample.paths.nodes[id]);
+					// 	}
 
-						//console.log(scene.sample.paths);
+					// 	//console.log(scene.sample.paths);
 
 
-						console.log("----------------------");
+					// 	console.log("----------------------");
 
-					// 	var ray = new THREE.Ray(
-					// 		closedList[closedList.length - 1][0],
-					// 		closedList[closedList.length - 1][0].position.clone().subSelf(destination).normalize()
-					// 	);
+					// // 	var ray = new THREE.Ray(
+					// // 		closedList[closedList.length - 1][0],
+					// // 		closedList[closedList.length - 1][0].position.clone().subSelf(destination).normalize()
+					// // 	);
 
 					// 	// If there is no object between this and the destination
 					// 	if(ray.intersectObject(scene.sample.blocker).length === 0) {
@@ -403,7 +446,7 @@
 					// 			openList.push([v, f]);
 					// 		}
 					// 	}
-					}
+					// }
 					
 					if(object.route.length === 1) {
 						object.movementVector = destination.clone().subSelf(object.groundPosition).normalize();
@@ -443,11 +486,13 @@
 
 		// Creates a DOM element who's values will reflect the position of the cursor
 		this.startDrag = function(e) {
-			$('#container').append('<div class="select"></div>');
-			this.drag = new Object();
-			this.drag.element = $('.select');
-			this.drag.startX = e.clientX;
-			this.drag.startY = e.clientY;
+			if(!this.drag) {
+				$('#container').append('<div class="select"></div>');
+				this.drag = new Object();
+				this.drag.element = $('.select');
+				this.drag.startX = e.clientX;
+				this.drag.startY = e.clientY;
+			}	
 		}
 
 		this.updateDrag = function(e) {
@@ -475,7 +520,7 @@
 			}	
 		}
 
-		this.endDrag = function(e) {
+		this.endDrag = function() {
 			if(this.drag) {
 				this.drag.element.remove();
 				delete this.drag;
@@ -512,7 +557,7 @@
 
 			// Differentiate clicking between dragging
 			var click = this.isClick(e.clientX, e.clientY, this.drag.startX, this.drag.startY),
-				closestClick = [undefined, settings.selectThreshold];
+				closestClick = [undefined, undefined];
 
 			// For each object in the scene
 			for(var index = 0; index < scene.sample.__objects.length; index++) {
@@ -533,10 +578,25 @@
 
 					if(click) {
 						 // Distance from click to object
-						var distance = Math.abs(e.clientX - ((center.x + 1) / 2 * window.innerWidth)) + 
-									   Math.abs(e.clientY - ((center.y + 1) / 2 * window.innerHeight));
+						var distance = Math.sqrt(
+							Math.abs(e.clientX - ((center.x + 1) / 2 * window.innerWidth)^2) + 
+							Math.abs(e.clientY - ((center.y + 1) / 2 * window.innerHeight)^2)
+						);
 
-						if(distance < closestClick[1]) {
+						// Account for other variables like unit size and camera zoom
+						distance = (distance - object.radius) * (display.camera.position.distanceTo(object.position));
+
+						console.log(distance);
+
+						// If there are not any other potential selected objects
+						if(!closestClick[1]) {
+							
+							// And this one is in the clickThreshold
+							if(distance < settings.selectThreshold) {
+								closestClick = [object, distance]
+							}
+
+						} else if(distance < closestClick[1]) {
 							closestClick = [object, distance]
 						}
 
@@ -592,8 +652,10 @@
 		};
 
 		this.addZoom = function(difference) {
-			display.camera.distance += difference;
-			display.camera.view.z += difference * 0.005;
+			display.camera.distance += difference * settings.scrollSen;
+
+			// Vertical movement
+			display.camera.view.z += difference * 0.005 * settings.scrollSen;
 		};
 
 		this.updatePosition = function() {
@@ -699,37 +761,16 @@
 			}
 		};
 
+		// Disable right clicking
 		document.oncontextmenu = function(e) {
 			return false;
 		}
 
 		document.onmousemove = function(e) {
-			if(mouseVars.down) {
-				// Pan screen
-				if(keysPressed[settings.keys.camera.panMouse]) {
+			mouseVars.toUpdate = true;
 
-					selection.endDrag(e);
-					
-					// Find difference between this frame and last frame
-					var x = ((e.clientX / window.innerWidth) * 2 - 1) - ((mouseVars.lastX / window.innerWidth) * 2 - 1),
-						y =  ((e.clientY / window.innerHeight) * 2 - 1) - ((mouseVars.lastY / window.innerHeight) * 2 - 1);
-
-					camera.moveView(x * display.camera.aspect, y);
-
-				// Rotate Screen
-				} else if(keysPressed[settings.keys.camera.rotateMouse]) {
-
-					selection.endDrag(e);
-					camera.addViewRotation(mouseVars.lastX - e.clientX, 0);
-					camera.addZoom(e.clientY - mouseVars.lastY);	
-
-				// Update selection box
-				} else {
-					selection.updateDrag(e);
-				}
-			}
-			mouseVars.lastX = e.clientX;
-			mouseVars.lastY = e.clientY;
+			mouseVars.clientX = e.clientX;
+			mouseVars.clientY = e.clientY;
 		};
 
 		// Scroll to zoom
@@ -748,7 +789,8 @@
 				} else {
 					camera.addZoom(settings.scrollSen);
 				}
-				
+
+				mouseVars.toUpdate = true;
 			}
 			document.addEventListener('DOMMouseScroll', moveObject, false);
 			document.onmousewheel = moveObject;
@@ -794,15 +836,49 @@
 				}
 			}
 
+			// Happens only if the mouse moved since the last frame
+			if(mouseVars.toUpdate) {
+				if(mouseVars.down) {
+
+					// Pan screen
+					if(keysPressed[settings.keys.camera.panMouse]) {
+						selection.endDrag();
+						
+						// Find difference between this frame and last frame
+						var x = ((mouseVars.clientX / window.innerWidth) * 2 - 1) - ((mouseVars.lastX / window.innerWidth) * 2 - 1),
+							y =  ((mouseVars.clientY / window.innerHeight) * 2 - 1) - ((mouseVars.lastY / window.innerHeight) * 2 - 1);
+
+						// Translate the camera accordingly
+						camera.moveView(x * display.camera.aspect, y);
+
+					// Rotate Screen
+					} else if(keysPressed[settings.keys.camera.rotateMouse]) {
+						selection.endDrag();
+
+						// Rotate for left and right movement
+						camera.addViewRotation(mouseVars.lastX - mouseVars.clientX, 0);
+						
+						// Zoom for up and down movement
+						camera.addZoom((mouseVars.clientY - mouseVars.lastY) / settings.scrollSen * settings.rotSen * 200);	
+
+					} else {
+						// Update selection box
+						selection.updateDrag(mouseVars);
+					}
+				}
+				mouseVars.lastX = mouseVars.clientX;
+				mouseVars.lastY = mouseVars.clientY;
+
+				mouseVars.toUpdate = false;
+			}
+
 			camera.updatePosition();
-			camera.updateRotation();   
+			camera.updateRotation();  
 
 			utils.stats.update();
 			display.renderer.render(scene.sample, display.camera);
 
-			// Do this stuff AFTER rendering to eliminate lag
-			display.draw.clearRect(0, 0, window.innerWidth, window.innerHeight);
-			display.draw.drawObjects();
+			display.draw.update();
 
 			requestAnimationFrame(renderLoop);
 		})();

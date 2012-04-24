@@ -28,8 +28,6 @@ tr, th, td {
 	min-width: 50px;
 	max-width: 130px;
 	padding: 5px;
-
-	z-index: 2;
 }
 .corner {
 	border: none;
